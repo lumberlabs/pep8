@@ -97,6 +97,7 @@ __version__ = '0.5.1dev'
 import os
 import sys
 import re
+import textwrap
 import time
 import inspect
 import keyword
@@ -143,28 +144,97 @@ args = None
 
 
 ##############################################################################
-# Plugins (check functions) for physical lines
+# Metaclasses and registries for cleaners
+##############################################################################
+
+PHYSICAL_LINE_CHECKERS = set()
+LOGICAL_LINE_CHECKERS = set()
+
+
+class LineChecker(type):
+
+    def __new__(metacls, name, bases, dictionary):
+        # validation
+        for required_attr in ("pep8", "code", "short_description"):
+            if not required_attr in dictionary:
+                raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
+        # cleanup
+        dictionary["pep8"] = textwrap.dedent(dictionary["pep8"])
+        # additional fields
+        dictionary["description"] = dictionary["code"] + " " + dictionary["short_description"]
+        return super(LineChecker, metacls).__new__(metacls, name, bases, dictionary)
+
+    def __init__(cls, name, bases, dictionary):
+        # registration
+        cls.registry.add(cls)
+
+
+class PhysicalLineChecker(LineChecker):
+    registry = PHYSICAL_LINE_CHECKERS
+
+
+class LogicalLineChecker(LineChecker):
+    registry = LOGICAL_LINE_CHECKERS
+
+
+##############################################################################
+# Line data structure
+##############################################################################
+
+class Line(object):
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+##############################################################################
+# Plugins (checker classes) for physical lines
 ##############################################################################
 
 
-def tabs_or_spaces(physical_line, indent_char):
-    r"""
-    Never mix tabs and spaces.
+class TabsOrSpaces(object):
+    __metaclass__ = PhysicalLineChecker
 
-    The most popular way of indenting Python is with spaces only.  The
-    second-most popular way is with tabs only.  Code indented with a mixture
-    of tabs and spaces should be converted to using spaces exclusively.  When
-    invoking the Python command line interpreter with the -t option, it issues
-    warnings about code that illegally mixes tabs and spaces.  When using -tt
-    these warnings become errors.  These options are highly recommended!
+    pep8 = r"""
+           Never mix tabs and spaces.
 
-    Okay: if a == 0:\n        a = 1\n        b = 1
-    E101: if a == 0:\n        a = 1\n\tb = 1
-    """
-    indent = INDENT_REGEX.match(physical_line).group(1)
-    for offset, char in enumerate(indent):
-        if char != indent_char:
-            return offset, "E101 indentation contains mixed spaces and tabs"
+           The most popular way of indenting Python is with spaces only.  The
+           second-most popular way is with tabs only.  Code indented with a mixture
+           of tabs and spaces should be converted to using spaces exclusively.  When
+           invoking the Python command line interpreter with the -t option, it issues
+           warnings about code that illegally mixes tabs and spaces.  When using -tt
+           these warnings become errors.  These options are highly recommended!
+
+           Okay: if a == 0:\n        a = 1\n        b = 1
+           E101: if a == 0:\n        a = 1\n\tb = 1
+           """
+
+    code = "E101"
+    short_description = "indentation contains mixed spaces and tabs"
+
+    def first_error_offset(self, line):
+        r"""
+        >>> checker = TabsOrSpaces()
+        >>> checker.first_error_offset(Line(physical_line='if a == 0:', indent_char=' '))
+        >>> checker.first_error_offset(Line(physical_line='        a = 1', indent_char=' '))
+        >>> checker.first_error_offset(Line(physical_line='\ta = 1', indent_char=' '))
+        0
+        >>> checker.first_error_offset(Line(physical_line='        \ta = 1', indent_char=' '))
+        8
+        >>> checker.first_error_offset(Line(physical_line='\t        a = 1', indent_char=' '))
+        0
+        >>> checker.first_error_offset(Line(physical_line='        a = 1', indent_char='\t'))
+        0
+        >>> checker.first_error_offset(Line(physical_line='\ta = 1', indent_char='\t'))
+        >>> checker.first_error_offset(Line(physical_line='        \ta = 1', indent_char='\t'))
+        0
+        >>> checker.first_error_offset(Line(physical_line='\t        a = 1', indent_char='\t'))
+        1
+        """
+        indent = INDENT_REGEX.match(line.physical_line).group(1)
+        for offset, char in enumerate(indent):
+            if char != line.indent_char:
+                return offset
 
 
 def tabs_obsolete(physical_line):
@@ -869,6 +939,13 @@ class Checker(object):
             if result is not None:
                 offset, text = result
                 self.report_error(self.line_number, offset, text, check)
+
+        for cls in PHYSICAL_LINE_CHECKERS:
+            instance = cls()
+            line_obj = Line(physical_line=line, indent_char=self.indent_char)
+            error_offset = instance.first_error_offset(line_obj)
+            if error_offset is not None:
+                self.report_error(self.line_number, error_offset, cls.description, cls.__name__)
 
     def build_tokens_line(self):
         """
