@@ -273,9 +273,10 @@ class TabsObsolete(object):
         4
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
-        if indent.count('\t'):
+        try:
             return indent.index('\t')
-
+        except ValueError:
+            pass
 
 
 def trailing_whitespace(physical_line):
