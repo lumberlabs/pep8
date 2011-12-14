@@ -240,17 +240,42 @@ class TabsOrSpaces(object):
                 return offset
 
 
-def tabs_obsolete(physical_line):
-    r"""
-    For new projects, spaces-only are strongly recommended over tabs.  Most
-    editors have features that make this easy to do.
+class TabsObsolete(object):
+    __metaclass__ = PhysicalLineChecker
 
-    Okay: if True:\n    return
-    W191: if True:\n\treturn
-    """
-    indent = INDENT_REGEX.match(physical_line).group(1)
-    if indent.count('\t'):
-        return indent.index('\t'), "W191 indentation contains tabs"
+    pep8 = r"""
+            For new projects, spaces-only are strongly recommended over tabs.  Most
+            editors have features that make this easy to do.
+            """
+
+    original_test_cases = r"""
+                           Okay: if True:\n    return
+                           W191: if True:\n\treturn
+                           """
+
+    code = "W191"
+    short_description = "indentation contains tabs"
+
+    def first_error_offset(self, line):
+        r"""
+        >>> checker = TabsObsolete()
+        >>> checker.first_error_offset(Line(physical_line='a == 0'))
+        >>> checker.first_error_offset(Line(physical_line=' a = 0'))
+        >>> checker.first_error_offset(Line(physical_line='  a = 0'))
+        >>> checker.first_error_offset(Line(physical_line='   a = 0'))
+        >>> checker.first_error_offset(Line(physical_line='\ta = 0'))
+        0
+        >>> checker.first_error_offset(Line(physical_line='\t\ta = 0'))
+        0
+        >>> checker.first_error_offset(Line(physical_line=' \t\ta = 0'))
+        1
+        >>> checker.first_error_offset(Line(physical_line='    \t\ta = 0'))
+        4
+        """
+        indent = INDENT_REGEX.match(line.physical_line).group(1)
+        if indent.count('\t'):
+            return indent.index('\t')
+
 
 
 def trailing_whitespace(physical_line):
