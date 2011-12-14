@@ -159,7 +159,8 @@ class LineChecker(type):
             if not required_attr in dictionary:
                 raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
         # cleanup
-        dictionary["pep8"] = textwrap.dedent(dictionary["pep8"])
+        for dedent_fields in ("pep8", "original_test_cases"):
+            dictionary[dedent_fields] = textwrap.dedent(dictionary[dedent_fields]).strip("\n")
         # additional fields
         dictionary["description"] = dictionary["code"] + " " + dictionary["short_description"]
         return super(LineChecker, metacls).__new__(metacls, name, bases, dictionary)
@@ -204,10 +205,12 @@ class TabsOrSpaces(object):
            invoking the Python command line interpreter with the -t option, it issues
            warnings about code that illegally mixes tabs and spaces.  When using -tt
            these warnings become errors.  These options are highly recommended!
-
-           Okay: if a == 0:\n        a = 1\n        b = 1
-           E101: if a == 0:\n        a = 1\n\tb = 1
            """
+
+    original_test_cases = r"""
+                           Okay: if a == 0:\n        a = 1\n        b = 1
+                           E101: if a == 0:\n        a = 1\n\tb = 1
+                           """
 
     code = "E101"
     short_description = "indentation contains mixed spaces and tabs"
