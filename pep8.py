@@ -116,7 +116,6 @@ DEFAULT_IGNORE = 'E24'
 MAX_LINE_LENGTH = 79
 
 INDENT_REGEX = re.compile(r'([ \t]*)')
-RAISE_COMMA_REGEX = re.compile(r'raise\s+\w+\s*(,)')
 SELFTEST_REGEX = re.compile(r'(Okay|[EW]\d{3}):\s(.*)')
 ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
@@ -978,19 +977,39 @@ class Python3000HasKey(object):
             return pos
 
 
-def python_3000_raise_comma(logical_line):
-    """
-    When raising an exception, use "raise ValueError('message')"
-    instead of the older form "raise ValueError, 'message'".
+class Python3000RaiseComma(object):
+    __metaclass__ = LogicalLineChecker
 
-    The paren-using form is preferred because when the exception arguments
-    are long or include string formatting, you don't need to use line
-    continuation characters thanks to the containing parentheses.  The older
-    form will be removed in Python 3000.
-    """
-    match = RAISE_COMMA_REGEX.match(logical_line)
-    if match:
-        return match.start(1), "W602 deprecated form of raising exception"
+    pep8 = r"""
+            When raising an exception, use "raise ValueError('message')"
+            instead of the older form "raise ValueError, 'message'".
+
+            The paren-using form is preferred because when the exception arguments
+            are long or include string formatting, you don't need to use line
+            continuation characters thanks to the containing parentheses.  The older
+            form will be removed in Python 3000.
+            """
+
+    original_test_cases = ""
+
+    code = "W602"
+    short_description = "deprecated form of raising exception"
+
+    RAISE_COMMA_REGEX = re.compile(r'raise\s+\w+\s*(,)')
+
+    def __init__(self, **kwargs):
+        pass
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = Python3000RaiseComma()
+        >>> checker.error_offset(LogicalLine(logical_line='raise ValueError, "message"'))
+        16
+        >>> checker.error_offset(LogicalLine(logical_line='raise ValueError("message")'))
+        """
+        match = self.RAISE_COMMA_REGEX.match(line.logical_line)
+        if match:
+            return match.start(1)
 
 
 def python_3000_not_equal(logical_line):
