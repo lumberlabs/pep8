@@ -199,6 +199,12 @@ class PhysicalLine(object):
         self.line_number = line_number
 
 
+class LogicalLine(object):
+
+    def __init__(self, logical_line=None):
+        self.logical_line = logical_line
+
+
 class Document(object):
 
     def __init__(self, num_lines=None, indent_char=None):
@@ -941,17 +947,35 @@ def compound_statements(logical_line):
         return found, "E702 multiple statements on one line (semicolon)"
 
 
-def python_3000_has_key(logical_line):
-    """
-    The {}.has_key() method will be removed in the future version of
-    Python. Use the 'in' operation instead, like:
-    d = {"a": 1, "b": 2}
-    if "b" in d:
-        print d["b"]
-    """
-    pos = logical_line.find('.has_key(')
-    if pos > -1:
-        return pos, "W601 .has_key() is deprecated, use 'in'"
+class Python3000HasKey(object):
+    __metaclass__ = LogicalLineChecker
+
+    pep8 = r"""
+            The {}.has_key() method will be removed in the future version of
+            Python. Use the 'in' operation instead, like:
+            d = {"a": 1, "b": 2}
+            if "b" in d:
+                print d["b"]
+            """
+
+    original_test_cases = ""
+
+    code = "W601"
+    short_description = ".has_key() is deprecated, use 'in'"
+
+    def __init__(self, **kwargs):
+        pass
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = Python3000HasKey()
+        >>> checker.error_offset(LogicalLine(logical_line='{"A": 3}.has_key("A")'))
+        8
+        >>> checker.error_offset(LogicalLine(logical_line='"A" in {"A": 3}'))
+        """
+        pos = line.logical_line.find('.has_key(')
+        if pos > -1:
+            return pos
 
 
 def python_3000_raise_comma(logical_line):
@@ -1267,7 +1291,36 @@ class Checker(object):
                                                + offset - token_offset)
                 self.report_error(original_number, original_offset,
                                   text, check)
+
+        handled_error_classes = set()
+        for cls in LOGICAL_LINE_CHECKERS:
+
+            if cls in handled_error_classes:
+                # a subclass of this error has alreay been reported; don't re-report
+                continue
+
+            checker_config = {}  # e.g. {"max_line_length": 200}
+            instance = cls(**checker_config)
+            line_obj = LogicalLine(logical_line=self.logical_line)
+            error_offset = instance.error_offset(line=line_obj, document=self.document)
+            if error_offset is not None:
+                handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
+
+                if isinstance(error_offset, tuple):
+                    original_number, original_offset = error_offset
+                else:
+                    for token_offset, token in self.mapping:
+                        if error_offset >= token_offset:
+                            original_number = token[2][0]
+                            original_offset = (token[2][1]
+                                               + error_offset - token_offset)
+
+                self.report_error(original_number, original_offset, cls.description, cls.__name__)
+
+
         self.previous_logical = self.logical_line
+
+
 
     def check_all(self, expected=None, line_offset=0):
         """
