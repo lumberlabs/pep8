@@ -194,8 +194,16 @@ class LogicalLineChecker(LineChecker):
 
 class Line(object):
 
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    def __init__(self, physical_line=None, line_number=None):
+        self.physical_line = physical_line
+        self.line_number = line_number
+
+
+class Document(object):
+
+    def __init__(self, num_lines=None, indent_char=None):
+        self.num_lines = num_lines
+        self.indent_char = indent_char
 
 
 ##############################################################################
@@ -225,28 +233,28 @@ class TabsOrSpaces(object):
     code = "E101"
     short_description = "indentation contains mixed spaces and tabs"
 
-    def error_offset(self, line):
+    def error_offset(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.error_offset(Line(physical_line='if a == 0:', indent_char=' '))
-        >>> checker.error_offset(Line(physical_line='        a = 1', indent_char=' '))
-        >>> checker.error_offset(Line(physical_line='\ta = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='if a == 0:'), Document(indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='        a = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='\ta = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(Line(physical_line='        \ta = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='        \ta = 1'), Document(indent_char=' '))
         8
-        >>> checker.error_offset(Line(physical_line='\t        a = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='\t        a = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(Line(physical_line='        a = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='        a = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(Line(physical_line='\ta = 1', indent_char='\t'))
-        >>> checker.error_offset(Line(physical_line='        \ta = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='\ta = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='        \ta = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(Line(physical_line='\t        a = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='\t        a = 1'), Document(indent_char='\t'))
         1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
         for offset, char in enumerate(indent):
-            if char != line.indent_char:
+            if char != document.indent_char:
                 return offset
 
 
@@ -266,7 +274,7 @@ class TabsObsolete(object):
     code = "W191"
     short_description = "indentation contains tabs"
 
-    def error_offset(self, line):
+    def error_offset(self, line, document=None):
         r"""
         >>> checker = TabsObsolete()
         >>> checker.error_offset(Line(physical_line='a == 0'))
@@ -340,7 +348,7 @@ class TrailingWhitespace(object):
     code = "W291"
     short_description = "trailing whitespace"
 
-    def error_offset(self, line):
+    def error_offset(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
         >>> checker.error_offset(Line(physical_line='spam(1)'))
@@ -375,7 +383,7 @@ class LineOfWhiteSpace(TrailingWhitespace):
     code = "W293"
     short_description = "blank line contains whitespace"
 
-    def error_offset(self, line):
+    def error_offset(self, line, document=None):
         r"""
         >>> checker = LineOfWhiteSpace()
         >>> checker.error_offset(Line(physical_line='spam(1)'))
@@ -396,15 +404,32 @@ class LineOfWhiteSpace(TrailingWhitespace):
             return 0
 
 
-def trailing_blank_lines(physical_line, lines, line_number):
-    r"""
-    JCR: Trailing blank lines are superfluous.
+class TrailingBlankLines(object):
+    __metaclass__ = PhysicalLineChecker
 
-    Okay: spam(1)
-    W391: spam(1)\n
-    """
-    if physical_line.strip() == '' and line_number == len(lines):
-        return 0, "W391 blank line at end of file"
+    pep8 = r"""
+            JCR: Trailing blank lines are superfluous.
+            """
+
+    original_test_cases = r"""
+                           Okay: spam(1)
+                           W391: spam(1)\n
+                           """
+
+    code = "W391"
+    short_description = "blank line at end of file"
+
+    def error_offset(self, line, document):
+        r"""
+        >>> checker = TrailingBlankLines()
+        >>> checker.error_offset(Line(physical_line='a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(Line(physical_line='', line_number=1), Document(num_lines=1))
+        0
+        >>> checker.error_offset(Line(physical_line='', line_number=1), Document(num_lines=2))
+        >>> checker.error_offset(Line(physical_line='a == 0', line_number=1), Document(num_lines=1))
+        """
+        if line.physical_line.strip() == '' and line.line_number == document.num_lines:
+            return 0
 
 
 def missing_newline(physical_line):
@@ -999,6 +1024,52 @@ def find_checks(argument_name):
     return checks
 
 
+def leading_indentation(s, indent_chars=" \t"):
+    r"""
+    Returns the leading indentation for a string s.
+    
+    >>> leading_indentation("   abc")
+    '   '
+    >>> leading_indentation(" abc ")
+    ' '
+    >>> leading_indentation("\tabc")
+    '\t'
+    >>> leading_indentation(" \t \t abc  \t\t  def  ")
+    ' \t \t '
+    >>> leading_indentation("")
+    ''
+    >>> leading_indentation("a bcdef", indent_chars="ab ")
+    'a b'
+    """
+    return s[:len(s) - len(s.lstrip(indent_chars))]
+
+
+def most_common_indent_char(list_of_strings, indent_chars=" \t"):
+    r"""
+    Determine which of a set of indentation characters occurs most in a list of lines.
+    Behavior is undetermined if there is a tie.
+
+    >>> most_common_indent_char([" a", " b", " c"], indent_chars=" \t")
+    ' '
+    >>> most_common_indent_char([" a", " b", "\tc"], indent_chars=" \t")
+    ' '
+    >>> most_common_indent_char([" a", "\tb", "\tc"], indent_chars=" \t")
+    '\t'
+    >>> most_common_indent_char([], indent_chars=" \t") in " \t"  # tie
+    True
+    >>> most_common_indent_char(["  a", "\tb", "\tc"], indent_chars=" \t") in " \t"  # tie
+    True
+    >>> most_common_indent_char([" a", " b", "cccc"], indent_chars=" c")
+    'c'
+    """
+    # quick heuristic to determine whether the file is indented with spaces or tabs
+    # not the most efficient, but simple: extract all indentation characters,
+    # and pick the most commonly occurring one.
+    all_indentation = "".join(leading_indentation(line, indent_chars=indent_chars) for line in list_of_strings)
+    most_common_indent_char = max((all_indentation.count(indent_char), indent_char) for indent_char in indent_chars)[1]
+    return most_common_indent_char
+
+
 class Checker(object):
     """
     Load a Python source file, tokenize it, check coding style.
@@ -1014,6 +1085,9 @@ class Checker(object):
         else:
             self.lines = lines
         options.counters['physical lines'] += len(self.lines)
+
+        self.document = Document(num_lines=len(self.lines),
+                                 indent_char=most_common_indent_char(self.lines))
 
     def readline(self):
         """
@@ -1064,8 +1138,8 @@ class Checker(object):
                 continue
 
             instance = cls()
-            line_obj = Line(physical_line=line, indent_char=self.indent_char)
-            error_offset = instance.error_offset(line_obj)
+            line_obj = Line(physical_line=line, line_number=self.line_number)
+            error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
                 handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
                 self.report_error(self.line_number, error_offset, cls.description, cls.__name__)
