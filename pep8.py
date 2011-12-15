@@ -908,42 +908,86 @@ def imports_on_separate_lines(logical_line):
             return found, "E401 multiple imports on one line"
 
 
-def compound_statements(logical_line):
-    r"""
-    Compound statements (multiple statements on the same line) are
-    generally discouraged.
+class CompoundStatementSemicolon(object):
+    __metaclass__ = LogicalLineChecker
 
-    While sometimes it's okay to put an if/for/while with a small body
-    on the same line, never do this for multi-clause statements. Also
-    avoid folding such long lines!
+    pep8 = r"""
+            Compound statements (multiple statements on the same line) are
+            generally discouraged.
 
-    Okay: if foo == 'blah':\n    do_blah_thing()
-    Okay: do_one()
-    Okay: do_two()
-    Okay: do_three()
+            While sometimes it's okay to put an if/for/while with a small body
+            on the same line, never do this for multi-clause statements. Also
+            avoid folding such long lines!
+            """
 
-    E701: if foo == 'blah': do_blah_thing()
-    E701: for x in lst: total += x
-    E701: while t < 10: t = delay()
-    E701: if foo == 'blah': do_blah_thing()
-    E701: else: do_non_blah_thing()
-    E701: try: something()
-    E701: finally: cleanup()
-    E701: if foo == 'blah': one(); two(); three()
+    original_test_cases = r"""
+                           Okay: do_one()
+                           Okay: do_two()
+                           Okay: do_three()
 
-    E702: do_one(); do_two(); do_three()
-    """
-    line = logical_line
-    found = line.find(':')
-    if -1 < found < len(line) - 1:
-        before = line[:found]
-        if (before.count('{') <= before.count('}') and  # {'a': 1} (dict)
-            before.count('[') <= before.count(']') and  # [1:2] (slice)
-            not re.search(r'\blambda\b', before)):      # lambda x: x
-            return found, "E701 multiple statements on one line (colon)"
-    found = line.find(';')
-    if -1 < found:
-        return found, "E702 multiple statements on one line (semicolon)"
+                           E702: do_one(); do_two(); do_three()
+                           """
+
+    code = "E702"
+    short_description = "multiple statements on one line (colon)"
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = CompoundStatementSemicolon()
+        >>> checker.error_offset(LogicalLine(logical_line='do_one(); do_two(); do_three()'))
+        8
+        """
+        found = line.logical_line.find(';')
+        if -1 < found:
+            return found
+
+
+class CompoundStatementColon(CompoundStatementSemicolon):
+
+    original_test_cases = r"""
+                           Okay: if foo == 'blah':\n    do_blah_thing()
+
+                           E701: if foo == 'blah': do_blah_thing()
+                           E701: for x in lst: total += x
+                           E701: while t < 10: t = delay()
+                           E701: if foo == 'blah': do_blah_thing()
+                           E701: else: do_non_blah_thing()
+                           E701: try: something()
+                           E701: finally: cleanup()
+                           E701: if foo == 'blah': one(); two(); three()
+                           """
+
+    def __init__(self, **kwargs):
+        pass
+
+    code = "E701"
+    short_description = "multiple statements on one line (colon)"
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = CompoundStatementColon()
+        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": do_blah_thing()'))
+        16
+        >>> checker.error_offset(LogicalLine(logical_line='while t < 10: t = delay()'))
+        12
+        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": do_blah_thing()'))
+        16
+        >>> checker.error_offset(LogicalLine(logical_line='else: do_non_blah_thing()'))
+        4
+        >>> checker.error_offset(LogicalLine(logical_line='try: something()'))
+        3
+        >>> checker.error_offset(LogicalLine(logical_line='finally: cleanup()'))
+        7
+        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": one(); two(); three()'))
+        16
+        """
+        found = line.logical_line.find(':')
+        if -1 < found < len(line.logical_line) - 1:
+            before = line.logical_line[:found]
+            if (before.count('{') <= before.count('}') and  # {'a': 1} (dict)
+                before.count('[') <= before.count(']') and  # [1:2] (slice)
+                not re.search(r'\blambda\b', before)):      # lambda x: x
+                return found
 
 
 class Python3000HasKey(object):
