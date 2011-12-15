@@ -1042,15 +1042,32 @@ class Python3000NotEqual(object):
         if pos > -1:
             return pos
 
+class Python3000Backticks(object):
+    __metaclass__ = LogicalLineChecker
 
-def python_3000_backticks(logical_line):
-    """
-    Backticks are removed in Python 3000.
-    Use repr() instead.
-    """
-    pos = logical_line.find('`')
-    if pos > -1:
-        return pos, "W604 backticks are deprecated, use 'repr()'"
+    pep8 = r"""
+            Backticks are removed in Python 3000.
+            Use repr() instead.
+            """
+
+    original_test_cases = ""
+
+    code = "W604"
+    short_description = "backticks are deprecated, use 'repr()'"
+
+    def __init__(self, **kwargs):
+        pass
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = Python3000Backticks()
+        >>> checker.error_offset(LogicalLine(logical_line='print `{}`'))
+        6
+        >>> checker.error_offset(LogicalLine(logical_line='print repr({})'))
+        """
+        pos = line.logical_line.find('`')
+        if pos > -1:
+            return pos
 
 
 ##############################################################################
