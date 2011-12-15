@@ -432,12 +432,30 @@ class TrailingBlankLines(object):
             return 0
 
 
-def missing_newline(physical_line):
-    """
-    JCR: The last line should have a newline.
-    """
-    if physical_line.rstrip() == physical_line:
-        return len(physical_line), "W292 no newline at end of file"
+class MissingNewline(object):
+    __metaclass__ = PhysicalLineChecker
+
+    pep8 = r"""
+            JCR: The last line should have a newline.
+            """
+
+    original_test_cases = r""
+
+    code = "W292"
+    short_description = "no newline at end of file"
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = MissingNewline()
+        >>> checker.error_offset(Line(physical_line=''))
+        0
+        >>> checker.error_offset(Line(physical_line='\n'))
+        >>> checker.error_offset(Line(physical_line='abc'))
+        3
+        >>> checker.error_offset(Line(physical_line='abc\n'))
+        """
+        if line.physical_line.rstrip() == line.physical_line:
+            return len(line.physical_line)
 
 
 def maximum_line_length(physical_line):
