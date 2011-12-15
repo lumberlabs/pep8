@@ -1153,6 +1153,7 @@ class Checker(object):
             self.lines = lines
         options.counters['physical lines'] += len(self.lines)
 
+        self.indent_char = most_common_indent_char(self.lines)  # TODO: Remove me
         self.document = Document(num_lines=len(self.lines),
                                  indent_char=most_common_indent_char(self.lines))
 
@@ -1188,15 +1189,6 @@ class Checker(object):
         """
         Run all physical checks on a raw input line.
         """
-        self.physical_line = line
-        if self.indent_char is None and len(line) and line[0] in ' \t':
-            self.indent_char = line[0]
-        for name, check, argument_names in options.physical_checks:
-            result = self.run_check(check, argument_names)
-            if result is not None:
-                offset, text = result
-                self.report_error(self.line_number, offset, text, check)
-
         handled_error_classes = set()
         for cls in PHYSICAL_LINE_CHECKERS:
 
@@ -1285,7 +1277,6 @@ class Checker(object):
         self.line_offset = line_offset
         self.line_number = 0
         self.file_errors = 0
-        self.indent_char = None
         self.indent_level = 0
         self.previous_logical = ''
         self.blank_lines = 0
