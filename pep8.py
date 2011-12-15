@@ -233,6 +233,9 @@ class TabsOrSpaces(object):
     code = "E101"
     short_description = "indentation contains mixed spaces and tabs"
 
+    def __init__(self, **kwargs):
+        pass
+
     def error_offset(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
@@ -273,6 +276,9 @@ class TabsObsolete(object):
 
     code = "W191"
     short_description = "indentation contains tabs"
+
+    def __init__(self, **kwargs):
+        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -348,6 +354,9 @@ class TrailingWhitespace(object):
     code = "W291"
     short_description = "trailing whitespace"
 
+    def __init__(self, **kwargs):
+        pass
+
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
@@ -382,6 +391,9 @@ class LineOfWhiteSpace(TrailingWhitespace):
 
     code = "W293"
     short_description = "blank line contains whitespace"
+
+    def __init__(self, **kwargs):
+        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -419,6 +431,9 @@ class TrailingBlankLines(object):
     code = "W391"
     short_description = "blank line at end of file"
 
+    def __init__(self, **kwargs):
+        pass
+
     def error_offset(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
@@ -443,6 +458,9 @@ class MissingNewline(object):
 
     code = "W292"
     short_description = "no newline at end of file"
+
+    def __init__(self, **kwargs):
+        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -481,6 +499,9 @@ class MaximumLineLength(object):
     # TODO: Parameterize this, a la:
     # short_description = "line too long (%d characters)" % length
 
+    def __init__(self, max_line_length=MAX_LINE_LENGTH, **kwargs):
+        self.max_line_length = max_line_length
+
     def error_offset(self, line, document=None):
         r"""
         >>> checker = MaximumLineLength()
@@ -490,10 +511,14 @@ class MaximumLineLength(object):
         >>> checker.error_offset(Line(physical_line='a' * 200))
         79
         >>> checker.error_offset(Line(physical_line=''))
+        >>> checker3 = MaximumLineLength(max_line_length=3)
+        >>> checker3.error_offset(Line(physical_line="123"))
+        >>> checker3.error_offset(Line(physical_line="1234"))
+        3
         """
         stripped = line.physical_line.rstrip()
         length = len(stripped)
-        if length > MAX_LINE_LENGTH:
+        if length > self.max_line_length:
             try:
                 # The line could contain multi-byte characters
                 if not hasattr(stripped, 'decode'):   # Python 3
@@ -503,8 +528,8 @@ class MaximumLineLength(object):
                 length = len(encoded.decode('utf-8'))
             except UnicodeDecodeError:
                 pass
-        if length > MAX_LINE_LENGTH:
-            return MAX_LINE_LENGTH
+        if length > self.max_line_length:
+            return self.max_line_length
 
 
 ##############################################################################
@@ -1179,7 +1204,8 @@ class Checker(object):
                 # a subclass of this error has alreay been reported; don't re-report
                 continue
 
-            instance = cls()
+            checker_config = {}  # e.g. {"max_line_length": 200}
+            instance = cls(**checker_config)
             line_obj = Line(physical_line=line, line_number=self.line_number)
             error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
