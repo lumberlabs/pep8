@@ -156,7 +156,7 @@ class LineChecker(type):
 
     def __new__(metacls, name, bases, dictionary):
         # validation
-        for required_attr in ("pep8", "code", "short_description"):
+        for required_attr in ("pep8", "code", "short_description", "error_offset"):
             if not required_attr in dictionary and not any(hasattr(base, required_attr) for base in bases):
                 raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
 
