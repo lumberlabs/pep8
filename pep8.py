@@ -439,7 +439,7 @@ class MissingNewline(object):
             JCR: The last line should have a newline.
             """
 
-    original_test_cases = r""
+    original_test_cases = ""
 
     code = "W292"
     short_description = "no newline at end of file"
@@ -458,29 +458,53 @@ class MissingNewline(object):
             return len(line.physical_line)
 
 
-def maximum_line_length(physical_line):
-    """
-    Limit all lines to a maximum of 79 characters.
+class MaximumLineLength(object):
+    __metaclass__ = PhysicalLineChecker
 
-    There are still many devices around that are limited to 80 character
-    lines; plus, limiting windows to 80 characters makes it possible to have
-    several windows side-by-side.  The default wrapping on such devices looks
-    ugly.  Therefore, please limit all lines to a maximum of 79 characters.
-    For flowing long blocks of text (docstrings or comments), limiting the
-    length to 72 characters is recommended.
-    """
-    line = physical_line.rstrip()
-    length = len(line)
-    if length > MAX_LINE_LENGTH:
-        try:
-            # The line could contain multi-byte characters
-            if not hasattr(line, 'decode'):   # Python 3
-                line = line.encode('latin-1')
-            length = len(line.decode('utf-8'))
-        except UnicodeDecodeError:
-            pass
-    if length > MAX_LINE_LENGTH:
-        return MAX_LINE_LENGTH, "E501 line too long (%d characters)" % length
+    # TODO: Implement a check for the recommended line length limits
+    # for "flowing long blocks of text".
+    pep8 = r"""
+            Limit all lines to a maximum of 79 characters.
+
+            There are still many devices around that are limited to 80 character
+            lines; plus, limiting windows to 80 characters makes it possible to have
+            several windows side-by-side. The default wrapping on such devices looks
+            ugly. Therefore, please limit all lines to a maximum of 79 characters.
+            For flowing long blocks of text (docstrings or comments), limiting the
+            length to 72 characters is recommended.
+            """
+
+    original_test_cases = ""
+
+    code = "E501"
+    short_description = "line too long"
+    # TODO: Parameterize this, a la:
+    # short_description = "line too long (%d characters)" % length
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = MaximumLineLength()
+        >>> checker.error_offset(Line(physical_line='a' * 80))
+        79
+        >>> checker.error_offset(Line(physical_line='a' * 79))
+        >>> checker.error_offset(Line(physical_line='a' * 200))
+        79
+        >>> checker.error_offset(Line(physical_line=''))
+        """
+        stripped = line.physical_line.rstrip()
+        length = len(stripped)
+        if length > MAX_LINE_LENGTH:
+            try:
+                # The line could contain multi-byte characters
+                if not hasattr(stripped, 'decode'):   # Python 3
+                    encoded = stripped.encode('latin-1')
+                else:
+                    encoded = stripped
+                length = len(encoded.decode('utf-8'))
+            except UnicodeDecodeError:
+                pass
+        if length > MAX_LINE_LENGTH:
+            return MAX_LINE_LENGTH
 
 
 ##############################################################################
