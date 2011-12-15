@@ -192,7 +192,7 @@ class LogicalLineChecker(LineChecker):
 # Line data structure
 ##############################################################################
 
-class Line(object):
+class PhysicalLine(object):
 
     def __init__(self, physical_line=None, line_number=None):
         self.physical_line = physical_line
@@ -239,20 +239,20 @@ class TabsOrSpaces(object):
     def error_offset(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.error_offset(Line(physical_line='if a == 0:'), Document(indent_char=' '))
-        >>> checker.error_offset(Line(physical_line='        a = 1'), Document(indent_char=' '))
-        >>> checker.error_offset(Line(physical_line='\ta = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine(physical_line='if a == 0:'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine(physical_line='        a = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(Line(physical_line='        \ta = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine(physical_line='        \ta = 1'), Document(indent_char=' '))
         8
-        >>> checker.error_offset(Line(physical_line='\t        a = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine(physical_line='\t        a = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(Line(physical_line='        a = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='        a = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(Line(physical_line='\ta = 1'), Document(indent_char='\t'))
-        >>> checker.error_offset(Line(physical_line='        \ta = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='        \ta = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(Line(physical_line='\t        a = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='\t        a = 1'), Document(indent_char='\t'))
         1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -283,17 +283,17 @@ class TabsObsolete(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TabsObsolete()
-        >>> checker.error_offset(Line(physical_line='a == 0'))
-        >>> checker.error_offset(Line(physical_line=' a = 0'))
-        >>> checker.error_offset(Line(physical_line='  a = 0'))
-        >>> checker.error_offset(Line(physical_line='   a = 0'))
-        >>> checker.error_offset(Line(physical_line='\ta = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='a == 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line=' a = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='  a = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='   a = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 0'))
         0
-        >>> checker.error_offset(Line(physical_line='\t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='\t\ta = 0'))
         0
-        >>> checker.error_offset(Line(physical_line=' \t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line=' \t\ta = 0'))
         1
-        >>> checker.error_offset(Line(physical_line='    \t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine(physical_line='    \t\ta = 0'))
         4
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -360,20 +360,20 @@ class TrailingWhitespace(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
-        >>> checker.error_offset(Line(physical_line='spam(1)'))
-        >>> checker.error_offset(Line(physical_line='spam(1) '))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)'))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1) '))
         7
-        >>> checker.error_offset(Line(physical_line='spam(1)  '))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)  '))
         7
-        >>> checker.error_offset(Line(physical_line=' spam(1) '))
+        >>> checker.error_offset(PhysicalLine(physical_line=' spam(1) '))
         8
-        >>> checker.error_offset(Line(physical_line='spam(1)\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)\t'))
         7
-        >>> checker.error_offset(Line(physical_line='   '))
+        >>> checker.error_offset(PhysicalLine(physical_line='   '))
         0
-        >>> checker.error_offset(Line(physical_line='\t '))
+        >>> checker.error_offset(PhysicalLine(physical_line='\t '))
         0
-        >>> checker.error_offset(Line(physical_line=' \t '))
+        >>> checker.error_offset(PhysicalLine(physical_line=' \t '))
         0
         """
         without_newlines = rstrip_newlines(line.physical_line)
@@ -398,16 +398,16 @@ class LineOfWhiteSpace(TrailingWhitespace):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = LineOfWhiteSpace()
-        >>> checker.error_offset(Line(physical_line='spam(1)'))
-        >>> checker.error_offset(Line(physical_line='spam(1) '))
-        >>> checker.error_offset(Line(physical_line='spam(1)  '))
-        >>> checker.error_offset(Line(physical_line=' spam(1) '))
-        >>> checker.error_offset(Line(physical_line='spam(1)\t'))
-        >>> checker.error_offset(Line(physical_line='   '))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)'))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1) '))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)  '))
+        >>> checker.error_offset(PhysicalLine(physical_line=' spam(1) '))
+        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)\t'))
+        >>> checker.error_offset(PhysicalLine(physical_line='   '))
         0
-        >>> checker.error_offset(Line(physical_line='\t '))
+        >>> checker.error_offset(PhysicalLine(physical_line='\t '))
         0
-        >>> checker.error_offset(Line(physical_line=' \t '))
+        >>> checker.error_offset(PhysicalLine(physical_line=' \t '))
         0
         """
         without_newlines = rstrip_newlines(line.physical_line)
@@ -437,11 +437,11 @@ class TrailingBlankLines(object):
     def error_offset(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
-        >>> checker.error_offset(Line(physical_line='a == 0', line_number=1), Document(num_lines=1))
-        >>> checker.error_offset(Line(physical_line='', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine(physical_line='a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine(physical_line='', line_number=1), Document(num_lines=1))
         0
-        >>> checker.error_offset(Line(physical_line='', line_number=1), Document(num_lines=2))
-        >>> checker.error_offset(Line(physical_line='a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine(physical_line='', line_number=1), Document(num_lines=2))
+        >>> checker.error_offset(PhysicalLine(physical_line='a == 0', line_number=1), Document(num_lines=1))
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
             return 0
@@ -465,12 +465,12 @@ class MissingNewline(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = MissingNewline()
-        >>> checker.error_offset(Line(physical_line=''))
+        >>> checker.error_offset(PhysicalLine(physical_line=''))
         0
-        >>> checker.error_offset(Line(physical_line='\n'))
-        >>> checker.error_offset(Line(physical_line='abc'))
+        >>> checker.error_offset(PhysicalLine(physical_line='\n'))
+        >>> checker.error_offset(PhysicalLine(physical_line='abc'))
         3
-        >>> checker.error_offset(Line(physical_line='abc\n'))
+        >>> checker.error_offset(PhysicalLine(physical_line='abc\n'))
         """
         if line.physical_line.rstrip() == line.physical_line:
             return len(line.physical_line)
@@ -505,15 +505,15 @@ class MaximumLineLength(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = MaximumLineLength()
-        >>> checker.error_offset(Line(physical_line='a' * 80))
+        >>> checker.error_offset(PhysicalLine(physical_line='a' * 80))
         79
-        >>> checker.error_offset(Line(physical_line='a' * 79))
-        >>> checker.error_offset(Line(physical_line='a' * 200))
+        >>> checker.error_offset(PhysicalLine(physical_line='a' * 79))
+        >>> checker.error_offset(PhysicalLine(physical_line='a' * 200))
         79
-        >>> checker.error_offset(Line(physical_line=''))
+        >>> checker.error_offset(PhysicalLine(physical_line=''))
         >>> checker3 = MaximumLineLength(max_line_length=3)
-        >>> checker3.error_offset(Line(physical_line="123"))
-        >>> checker3.error_offset(Line(physical_line="1234"))
+        >>> checker3.error_offset(PhysicalLine(physical_line="123"))
+        >>> checker3.error_offset(PhysicalLine(physical_line="1234"))
         3
         """
         stripped = line.physical_line.rstrip()
@@ -1198,7 +1198,7 @@ class Checker(object):
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = Line(physical_line=line, line_number=self.line_number)
+            line_obj = PhysicalLine(physical_line=line, line_number=self.line_number)
             error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
                 handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
