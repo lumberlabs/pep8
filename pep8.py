@@ -1012,15 +1012,35 @@ class Python3000RaiseComma(object):
             return match.start(1)
 
 
-def python_3000_not_equal(logical_line):
-    """
-    != can also be written <>, but this is an obsolete usage kept for
-    backwards compatibility only. New code should always use !=.
-    The older syntax is removed in Python 3000.
-    """
-    pos = logical_line.find('<>')
-    if pos > -1:
-        return pos, "W603 '<>' is deprecated, use '!='"
+class Python3000NotEqual(object):
+    __metaclass__ = LogicalLineChecker
+
+    pep8 = r"""
+            != can also be written <>, but this is an obsolete usage kept for
+            backwards compatibility only. New code should always use !=.
+            The older syntax is removed in Python 3000.
+            """
+
+    original_test_cases = ""
+
+    code = "W603"
+    short_description = "'<>' is deprecated, use '!='"
+
+    def __init__(self, **kwargs):
+        pass
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = Python3000NotEqual()
+        >>> checker.error_offset(LogicalLine(logical_line='a <> b'))
+        2
+        >>> checker.error_offset(LogicalLine(logical_line='a != b'))
+        >>> checker.error_offset(LogicalLine(logical_line='a > b'))
+        >>> checker.error_offset(LogicalLine(logical_line='a < b'))
+        """
+        pos = line.logical_line.find('<>')
+        if pos > -1:
+            return pos
 
 
 def python_3000_backticks(logical_line):
