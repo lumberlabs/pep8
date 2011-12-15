@@ -877,24 +877,43 @@ def whitespace_before_inline_comment(logical_line, tokens):
             prev_end = end
 
 
-def imports_on_separate_lines(logical_line):
-    r"""
-    Imports should usually be on separate lines.
+class ImportsOnSeparateLines(object):
+    __metaclass__ = LogicalLineChecker
 
-    Okay: import os\nimport sys
-    E401: import sys, os
+    pep8 = r"""
+            Imports should usually be on separate lines.
+            """
 
-    Okay: from subprocess import Popen, PIPE
-    Okay: from myclas import MyClass
-    Okay: from foo.bar.yourclass import YourClass
-    Okay: import myclass
-    Okay: import foo.bar.yourclass
-    """
-    line = logical_line
-    if line.startswith('import '):
-        found = line.find(',')
-        if found > -1:
-            return found, "E401 multiple imports on one line"
+    original_test_cases = r"""
+                           Okay: import os\nimport sys
+                           E401: import sys, os
+                           
+                           Okay: from subprocess import Popen, PIPE
+                           Okay: from myclas import MyClass
+                           Okay: from foo.bar.yourclass import YourClass
+                           Okay: import myclass
+                           Okay: import foo.bar.yourclass
+                           """
+
+    code = "E401"
+    short_description = "multiple imports on one line"
+
+    def error_offset(self, line, document=None):
+        r"""
+        >>> checker = ImportsOnSeparateLines()
+        >>> checker.error_offset(LogicalLine(logical_line='import os\nimport sys'))
+        >>> checker.error_offset(LogicalLine(logical_line='import sys, os'))
+        10
+        >>> checker.error_offset(LogicalLine(logical_line='from subprocess import Popen, PIPE'))
+        >>> checker.error_offset(LogicalLine(logical_line='from myclas import MyClass'))
+        >>> checker.error_offset(LogicalLine(logical_line='from foo.bar.yourclass import YourClass'))
+        >>> checker.error_offset(LogicalLine(logical_line='import myclass'))
+        >>> checker.error_offset(LogicalLine(logical_line='import foo.bar.yourclass'))
+        """
+        if line.logical_line.startswith('import '):
+            found = line.logical_line.find(',')
+            if found > -1:
+                return found
 
 
 class CompoundStatementSemicolon(object):
