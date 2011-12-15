@@ -200,14 +200,14 @@ class LogicalLineChecker(LineChecker):
 
 class PhysicalLine(object):
 
-    def __init__(self, physical_line=None, line_number=None):
+    def __init__(self, physical_line, line_number=None):
         self.physical_line = physical_line
         self.line_number = line_number
 
 
 class LogicalLine(object):
 
-    def __init__(self, logical_line=None):
+    def __init__(self, logical_line):
         self.logical_line = logical_line
 
 
@@ -248,20 +248,20 @@ class TabsOrSpaces(object):
     def error_offset(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.error_offset(PhysicalLine(physical_line='if a == 0:'), Document(indent_char=' '))
-        >>> checker.error_offset(PhysicalLine(physical_line='        a = 1'), Document(indent_char=' '))
-        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine('if a == 0:'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine('        a = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine('\ta = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='        \ta = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine('        \ta = 1'), Document(indent_char=' '))
         8
-        >>> checker.error_offset(PhysicalLine(physical_line='\t        a = 1'), Document(indent_char=' '))
+        >>> checker.error_offset(PhysicalLine('\t        a = 1'), Document(indent_char=' '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='        a = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine('        a = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 1'), Document(indent_char='\t'))
-        >>> checker.error_offset(PhysicalLine(physical_line='        \ta = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine('\ta = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine('        \ta = 1'), Document(indent_char='\t'))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\t        a = 1'), Document(indent_char='\t'))
+        >>> checker.error_offset(PhysicalLine('\t        a = 1'), Document(indent_char='\t'))
         1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -289,17 +289,17 @@ class TabsObsolete(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TabsObsolete()
-        >>> checker.error_offset(PhysicalLine(physical_line='a == 0'))
-        >>> checker.error_offset(PhysicalLine(physical_line=' a = 0'))
-        >>> checker.error_offset(PhysicalLine(physical_line='  a = 0'))
-        >>> checker.error_offset(PhysicalLine(physical_line='   a = 0'))
-        >>> checker.error_offset(PhysicalLine(physical_line='\ta = 0'))
+        >>> checker.error_offset(PhysicalLine('a == 0'))
+        >>> checker.error_offset(PhysicalLine(' a = 0'))
+        >>> checker.error_offset(PhysicalLine('  a = 0'))
+        >>> checker.error_offset(PhysicalLine('   a = 0'))
+        >>> checker.error_offset(PhysicalLine('\ta = 0'))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine('\t\ta = 0'))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line=' \t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine(' \t\ta = 0'))
         1
-        >>> checker.error_offset(PhysicalLine(physical_line='    \t\ta = 0'))
+        >>> checker.error_offset(PhysicalLine('    \t\ta = 0'))
         4
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -363,20 +363,20 @@ class TrailingWhitespace(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)'))
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1) '))
+        >>> checker.error_offset(PhysicalLine('spam(1)'))
+        >>> checker.error_offset(PhysicalLine('spam(1) '))
         7
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)  '))
+        >>> checker.error_offset(PhysicalLine('spam(1)  '))
         7
-        >>> checker.error_offset(PhysicalLine(physical_line=' spam(1) '))
+        >>> checker.error_offset(PhysicalLine(' spam(1) '))
         8
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)\t'))
+        >>> checker.error_offset(PhysicalLine('spam(1)\t'))
         7
-        >>> checker.error_offset(PhysicalLine(physical_line='   '))
+        >>> checker.error_offset(PhysicalLine('   '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\t '))
+        >>> checker.error_offset(PhysicalLine('\t '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line=' \t '))
+        >>> checker.error_offset(PhysicalLine(' \t '))
         0
         """
         without_newlines = rstrip_newlines(line.physical_line)
@@ -398,16 +398,16 @@ class LineOfWhiteSpace(TrailingWhitespace):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = LineOfWhiteSpace()
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)'))
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1) '))
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)  '))
-        >>> checker.error_offset(PhysicalLine(physical_line=' spam(1) '))
-        >>> checker.error_offset(PhysicalLine(physical_line='spam(1)\t'))
-        >>> checker.error_offset(PhysicalLine(physical_line='   '))
+        >>> checker.error_offset(PhysicalLine('spam(1)'))
+        >>> checker.error_offset(PhysicalLine('spam(1) '))
+        >>> checker.error_offset(PhysicalLine('spam(1)  '))
+        >>> checker.error_offset(PhysicalLine(' spam(1) '))
+        >>> checker.error_offset(PhysicalLine('spam(1)\t'))
+        >>> checker.error_offset(PhysicalLine('   '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\t '))
+        >>> checker.error_offset(PhysicalLine('\t '))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line=' \t '))
+        >>> checker.error_offset(PhysicalLine(' \t '))
         0
         """
         without_newlines = rstrip_newlines(line.physical_line)
@@ -434,11 +434,11 @@ class TrailingBlankLines(object):
     def error_offset(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
-        >>> checker.error_offset(PhysicalLine(physical_line='a == 0', line_number=1), Document(num_lines=1))
-        >>> checker.error_offset(PhysicalLine(physical_line='', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine('', line_number=1), Document(num_lines=1))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='', line_number=1), Document(num_lines=2))
-        >>> checker.error_offset(PhysicalLine(physical_line='a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.error_offset(PhysicalLine('', line_number=1), Document(num_lines=2))
+        >>> checker.error_offset(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
             return 0
@@ -459,12 +459,12 @@ class MissingNewline(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = MissingNewline()
-        >>> checker.error_offset(PhysicalLine(physical_line=''))
+        >>> checker.error_offset(PhysicalLine(''))
         0
-        >>> checker.error_offset(PhysicalLine(physical_line='\n'))
-        >>> checker.error_offset(PhysicalLine(physical_line='abc'))
+        >>> checker.error_offset(PhysicalLine('\n'))
+        >>> checker.error_offset(PhysicalLine('abc'))
         3
-        >>> checker.error_offset(PhysicalLine(physical_line='abc\n'))
+        >>> checker.error_offset(PhysicalLine('abc\n'))
         """
         if line.physical_line.rstrip() == line.physical_line:
             return len(line.physical_line)
@@ -499,15 +499,15 @@ class MaximumLineLength(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = MaximumLineLength()
-        >>> checker.error_offset(PhysicalLine(physical_line='a' * 80))
+        >>> checker.error_offset(PhysicalLine('a' * 80))
         79
-        >>> checker.error_offset(PhysicalLine(physical_line='a' * 79))
-        >>> checker.error_offset(PhysicalLine(physical_line='a' * 200))
+        >>> checker.error_offset(PhysicalLine('a' * 79))
+        >>> checker.error_offset(PhysicalLine('a' * 200))
         79
-        >>> checker.error_offset(PhysicalLine(physical_line=''))
+        >>> checker.error_offset(PhysicalLine(''))
         >>> checker3 = MaximumLineLength(max_line_length=3)
-        >>> checker3.error_offset(PhysicalLine(physical_line="123"))
-        >>> checker3.error_offset(PhysicalLine(physical_line="1234"))
+        >>> checker3.error_offset(PhysicalLine("123"))
+        >>> checker3.error_offset(PhysicalLine("1234"))
         3
         """
         stripped = line.physical_line.rstrip()
@@ -901,14 +901,14 @@ class ImportsOnSeparateLines(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = ImportsOnSeparateLines()
-        >>> checker.error_offset(LogicalLine(logical_line='import os\nimport sys'))
-        >>> checker.error_offset(LogicalLine(logical_line='import sys, os'))
+        >>> checker.error_offset(LogicalLine('import os\nimport sys'))
+        >>> checker.error_offset(LogicalLine('import sys, os'))
         10
-        >>> checker.error_offset(LogicalLine(logical_line='from subprocess import Popen, PIPE'))
-        >>> checker.error_offset(LogicalLine(logical_line='from myclas import MyClass'))
-        >>> checker.error_offset(LogicalLine(logical_line='from foo.bar.yourclass import YourClass'))
-        >>> checker.error_offset(LogicalLine(logical_line='import myclass'))
-        >>> checker.error_offset(LogicalLine(logical_line='import foo.bar.yourclass'))
+        >>> checker.error_offset(LogicalLine('from subprocess import Popen, PIPE'))
+        >>> checker.error_offset(LogicalLine('from myclas import MyClass'))
+        >>> checker.error_offset(LogicalLine('from foo.bar.yourclass import YourClass'))
+        >>> checker.error_offset(LogicalLine('import myclass'))
+        >>> checker.error_offset(LogicalLine('import foo.bar.yourclass'))
         """
         if line.logical_line.startswith('import '):
             found = line.logical_line.find(',')
@@ -942,7 +942,7 @@ class CompoundStatementSemicolon(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = CompoundStatementSemicolon()
-        >>> checker.error_offset(LogicalLine(logical_line='do_one(); do_two(); do_three()'))
+        >>> checker.error_offset(LogicalLine('do_one(); do_two(); do_three()'))
         8
         """
         found = line.logical_line.find(';')
@@ -971,19 +971,19 @@ class CompoundStatementColon(CompoundStatementSemicolon):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = CompoundStatementColon()
-        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": do_blah_thing()'))
+        >>> checker.error_offset(LogicalLine('if foo == "blah": do_blah_thing()'))
         16
-        >>> checker.error_offset(LogicalLine(logical_line='while t < 10: t = delay()'))
+        >>> checker.error_offset(LogicalLine('while t < 10: t = delay()'))
         12
-        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": do_blah_thing()'))
+        >>> checker.error_offset(LogicalLine('if foo == "blah": do_blah_thing()'))
         16
-        >>> checker.error_offset(LogicalLine(logical_line='else: do_non_blah_thing()'))
+        >>> checker.error_offset(LogicalLine('else: do_non_blah_thing()'))
         4
-        >>> checker.error_offset(LogicalLine(logical_line='try: something()'))
+        >>> checker.error_offset(LogicalLine('try: something()'))
         3
-        >>> checker.error_offset(LogicalLine(logical_line='finally: cleanup()'))
+        >>> checker.error_offset(LogicalLine('finally: cleanup()'))
         7
-        >>> checker.error_offset(LogicalLine(logical_line='if foo == "blah": one(); two(); three()'))
+        >>> checker.error_offset(LogicalLine('if foo == "blah": one(); two(); three()'))
         16
         """
         found = line.logical_line.find(':')
@@ -1014,9 +1014,9 @@ class Python3000HasKey(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000HasKey()
-        >>> checker.error_offset(LogicalLine(logical_line='{"A": 3}.has_key("A")'))
+        >>> checker.error_offset(LogicalLine('{"A": 3}.has_key("A")'))
         8
-        >>> checker.error_offset(LogicalLine(logical_line='"A" in {"A": 3}'))
+        >>> checker.error_offset(LogicalLine('"A" in {"A": 3}'))
         """
         pos = line.logical_line.find('.has_key(')
         if pos > -1:
@@ -1046,9 +1046,9 @@ class Python3000RaiseComma(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000RaiseComma()
-        >>> checker.error_offset(LogicalLine(logical_line='raise ValueError, "message"'))
+        >>> checker.error_offset(LogicalLine('raise ValueError, "message"'))
         16
-        >>> checker.error_offset(LogicalLine(logical_line='raise ValueError("message")'))
+        >>> checker.error_offset(LogicalLine('raise ValueError("message")'))
         """
         match = self.RAISE_COMMA_REGEX.match(line.logical_line)
         if match:
@@ -1072,11 +1072,11 @@ class Python3000NotEqual(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000NotEqual()
-        >>> checker.error_offset(LogicalLine(logical_line='a <> b'))
+        >>> checker.error_offset(LogicalLine('a <> b'))
         2
-        >>> checker.error_offset(LogicalLine(logical_line='a != b'))
-        >>> checker.error_offset(LogicalLine(logical_line='a > b'))
-        >>> checker.error_offset(LogicalLine(logical_line='a < b'))
+        >>> checker.error_offset(LogicalLine('a != b'))
+        >>> checker.error_offset(LogicalLine('a > b'))
+        >>> checker.error_offset(LogicalLine('a < b'))
         """
         pos = line.logical_line.find('<>')
         if pos > -1:
@@ -1098,9 +1098,9 @@ class Python3000Backticks(object):
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000Backticks()
-        >>> checker.error_offset(LogicalLine(logical_line='print `{}`'))
+        >>> checker.error_offset(LogicalLine('print `{}`'))
         6
-        >>> checker.error_offset(LogicalLine(logical_line='print repr({})'))
+        >>> checker.error_offset(LogicalLine('print repr({})'))
         """
         pos = line.logical_line.find('`')
         if pos > -1:
@@ -1315,7 +1315,7 @@ class Checker(object):
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = PhysicalLine(physical_line=line, line_number=self.line_number)
+            line_obj = PhysicalLine(line, line_number=self.line_number)
             error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
                 handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
@@ -1394,7 +1394,7 @@ class Checker(object):
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = LogicalLine(logical_line=self.logical_line)
+            line_obj = LogicalLine(self.logical_line)
             error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
                 handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
