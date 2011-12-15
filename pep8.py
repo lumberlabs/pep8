@@ -171,6 +171,13 @@ class LineChecker(type):
 
         # additional fields
         dictionary["description"] = dictionary["code"] + " " + dictionary["short_description"]
+
+        # set up a generic __init__ that has kwargs
+        if "__init__" not in dictionary:
+            def default_init(self, **kwargs):
+                pass
+            dictionary["__init__"] = default_init
+
         return super(LineChecker, metacls).__new__(metacls, name, bases, dictionary)
 
     def __init__(cls, name, bases, dictionary):
@@ -238,9 +245,6 @@ class TabsOrSpaces(object):
     code = "E101"
     short_description = "indentation contains mixed spaces and tabs"
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
@@ -281,9 +285,6 @@ class TabsObsolete(object):
 
     code = "W191"
     short_description = "indentation contains tabs"
-
-    def __init__(self, **kwargs):
-        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -359,9 +360,6 @@ class TrailingWhitespace(object):
     code = "W291"
     short_description = "trailing whitespace"
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
@@ -396,9 +394,6 @@ class LineOfWhiteSpace(TrailingWhitespace):
 
     code = "W293"
     short_description = "blank line contains whitespace"
-
-    def __init__(self, **kwargs):
-        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -436,9 +431,6 @@ class TrailingBlankLines(object):
     code = "W391"
     short_description = "blank line at end of file"
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
@@ -463,9 +455,6 @@ class MissingNewline(object):
 
     code = "W292"
     short_description = "no newline at end of file"
-
-    def __init__(self, **kwargs):
-        pass
 
     def error_offset(self, line, document=None):
         r"""
@@ -957,9 +946,6 @@ class CompoundStatementColon(CompoundStatementSemicolon):
                            E701: if foo == 'blah': one(); two(); three()
                            """
 
-    def __init__(self, **kwargs):
-        pass
-
     code = "E701"
     short_description = "multiple statements on one line (colon)"
 
@@ -1006,9 +992,6 @@ class Python3000HasKey(object):
     code = "W601"
     short_description = ".has_key() is deprecated, use 'in'"
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000HasKey()
@@ -1041,9 +1024,6 @@ class Python3000RaiseComma(object):
 
     RAISE_COMMA_REGEX = re.compile(r'raise\s+\w+\s*(,)')
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000RaiseComma()
@@ -1070,9 +1050,6 @@ class Python3000NotEqual(object):
     code = "W603"
     short_description = "'<>' is deprecated, use '!='"
 
-    def __init__(self, **kwargs):
-        pass
-
     def error_offset(self, line, document=None):
         r"""
         >>> checker = Python3000NotEqual()
@@ -1098,9 +1075,6 @@ class Python3000Backticks(object):
 
     code = "W604"
     short_description = "backticks are deprecated, use 'repr()'"
-
-    def __init__(self, **kwargs):
-        pass
 
     def error_offset(self, line, document=None):
         r"""
