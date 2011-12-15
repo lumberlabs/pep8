@@ -94,6 +94,7 @@ for space.
 
 __version__ = '0.5.1dev'
 
+import collections
 import os
 import sys
 import re
@@ -147,8 +148,8 @@ args = None
 # Metaclasses and registries for cleaners
 ##############################################################################
 
-PHYSICAL_LINE_CHECKERS = set()
-LOGICAL_LINE_CHECKERS = set()
+PHYSICAL_LINE_CHECKERS = collections.deque()
+LOGICAL_LINE_CHECKERS = collections.deque()
 
 
 class LineChecker(type):
@@ -156,18 +157,27 @@ class LineChecker(type):
     def __new__(metacls, name, bases, dictionary):
         # validation
         for required_attr in ("pep8", "code", "short_description"):
-            if not required_attr in dictionary:
+            if not required_attr in dictionary and not any(hasattr(base, required_attr) for base in bases):
                 raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
+
         # cleanup
-        for dedent_fields in ("pep8", "original_test_cases"):
-            dictionary[dedent_fields] = textwrap.dedent(dictionary[dedent_fields]).strip("\n")
+        for dedent_field in ("pep8", "original_test_cases"):
+            if not dedent_field in dictionary:
+                # must be in a superclass
+                for base in bases:
+                    if hasattr(base, dedent_field):
+                        dictionary[dedent_field] = getattr(base, dedent_field)
+                        break
+            dictionary[dedent_field] = textwrap.dedent(dictionary[dedent_field]).strip("\n")
+
         # additional fields
         dictionary["description"] = dictionary["code"] + " " + dictionary["short_description"]
         return super(LineChecker, metacls).__new__(metacls, name, bases, dictionary)
 
     def __init__(cls, name, bases, dictionary):
         # registration
-        cls.registry.add(cls)
+        # appendleft because this guarantees that subclasses will always be listed *before* their superclasses.
+        cls.registry.appendleft(cls)
 
 
 class PhysicalLineChecker(LineChecker):
@@ -215,23 +225,23 @@ class TabsOrSpaces(object):
     code = "E101"
     short_description = "indentation contains mixed spaces and tabs"
 
-    def first_error_offset(self, line):
+    def error_offset(self, line):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.first_error_offset(Line(physical_line='if a == 0:', indent_char=' '))
-        >>> checker.first_error_offset(Line(physical_line='        a = 1', indent_char=' '))
-        >>> checker.first_error_offset(Line(physical_line='\ta = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='if a == 0:', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='        a = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='\ta = 1', indent_char=' '))
         0
-        >>> checker.first_error_offset(Line(physical_line='        \ta = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='        \ta = 1', indent_char=' '))
         8
-        >>> checker.first_error_offset(Line(physical_line='\t        a = 1', indent_char=' '))
+        >>> checker.error_offset(Line(physical_line='\t        a = 1', indent_char=' '))
         0
-        >>> checker.first_error_offset(Line(physical_line='        a = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='        a = 1', indent_char='\t'))
         0
-        >>> checker.first_error_offset(Line(physical_line='\ta = 1', indent_char='\t'))
-        >>> checker.first_error_offset(Line(physical_line='        \ta = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='\ta = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='        \ta = 1', indent_char='\t'))
         0
-        >>> checker.first_error_offset(Line(physical_line='\t        a = 1', indent_char='\t'))
+        >>> checker.error_offset(Line(physical_line='\t        a = 1', indent_char='\t'))
         1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -256,20 +266,20 @@ class TabsObsolete(object):
     code = "W191"
     short_description = "indentation contains tabs"
 
-    def first_error_offset(self, line):
+    def error_offset(self, line):
         r"""
         >>> checker = TabsObsolete()
-        >>> checker.first_error_offset(Line(physical_line='a == 0'))
-        >>> checker.first_error_offset(Line(physical_line=' a = 0'))
-        >>> checker.first_error_offset(Line(physical_line='  a = 0'))
-        >>> checker.first_error_offset(Line(physical_line='   a = 0'))
-        >>> checker.first_error_offset(Line(physical_line='\ta = 0'))
+        >>> checker.error_offset(Line(physical_line='a == 0'))
+        >>> checker.error_offset(Line(physical_line=' a = 0'))
+        >>> checker.error_offset(Line(physical_line='  a = 0'))
+        >>> checker.error_offset(Line(physical_line='   a = 0'))
+        >>> checker.error_offset(Line(physical_line='\ta = 0'))
         0
-        >>> checker.first_error_offset(Line(physical_line='\t\ta = 0'))
+        >>> checker.error_offset(Line(physical_line='\t\ta = 0'))
         0
-        >>> checker.first_error_offset(Line(physical_line=' \t\ta = 0'))
+        >>> checker.error_offset(Line(physical_line=' \t\ta = 0'))
         1
-        >>> checker.first_error_offset(Line(physical_line='    \t\ta = 0'))
+        >>> checker.error_offset(Line(physical_line='    \t\ta = 0'))
         4
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -279,34 +289,111 @@ class TabsObsolete(object):
             pass
 
 
-def trailing_whitespace(physical_line):
+def rstrip_newlines(s):
     r"""
-    JCR: Trailing whitespace is superfluous.
-    FBM: Except when it occurs as part of a blank line (i.e. the line is
-         nothing but whitespace). According to Python docs[1] a line with only
-         whitespace is considered a blank line, and is to be ignored. However,
-         matching a blank line to its indentation level avoids mistakenly
-         terminating a multi-line statement (e.g. class declaration) when
-         pasting code into the standard Python interpreter.
+    Removes newline characters from the end of a line.
 
-         [1] http://docs.python.org/reference/lexical_analysis.html#blank-lines
+    Newline characters include:
+        \\n: chr(10), newline
+        \\r: chr(13), carriage return
+        \\x0c: chr(12), form feed (^L)
 
-    The warning returned varies on whether the line itself is blank, for easier
-    filtering for those who want to indent their blank lines.
-
-    Okay: spam(1)
-    W291: spam(1)\s
-    W293: class Foo(object):\n    \n    bang = 12
+    >>> rstrip_newlines("abc")
+    'abc'
+    >>> rstrip_newlines("")
+    ''
+    >>> rstrip_newlines("abc\n")
+    'abc'
+    >>> rstrip_newlines("abc\r")
+    'abc'
+    >>> rstrip_newlines("abc\x0c")
+    'abc'
+    >>> rstrip_newlines("abc\r\x0c\n")
+    'abc'
     """
-    physical_line = physical_line.rstrip('\n')    # chr(10), newline
-    physical_line = physical_line.rstrip('\r')    # chr(13), carriage return
-    physical_line = physical_line.rstrip('\x0c')  # chr(12), form feed, ^L
-    stripped = physical_line.rstrip()
-    if physical_line != stripped:
-        if stripped:
-            return len(stripped), "W291 trailing whitespace"
-        else:
-            return 0, "W293 blank line contains whitespace"
+    return s.rstrip('\n\r\x0c')
+
+
+class TrailingWhitespace(object):
+    __metaclass__ = PhysicalLineChecker
+
+    pep8 = r"""
+            JCR: Trailing whitespace is superfluous.
+            FBM: Except when it occurs as part of a blank line (i.e. the line is
+                 nothing but whitespace). According to Python docs[1] a line with only
+                 whitespace is considered a blank line, and is to be ignored. However,
+                 matching a blank line to its indentation level avoids mistakenly
+                 terminating a multi-line statement (e.g. class declaration) when
+                 pasting code into the standard Python interpreter.
+
+                 [1] http://docs.python.org/reference/lexical_analysis.html#blank-lines
+
+            The warning returned varies on whether the line itself is blank, for easier
+            filtering for those who want to indent their blank lines.
+            """
+
+    original_test_cases = r"""
+                           Okay: spam(1)
+                           W291: spam(1)\s
+                           """
+
+    code = "W291"
+    short_description = "trailing whitespace"
+
+    def error_offset(self, line):
+        r"""
+        >>> checker = TrailingWhitespace()
+        >>> checker.error_offset(Line(physical_line='spam(1)'))
+        >>> checker.error_offset(Line(physical_line='spam(1) '))
+        7
+        >>> checker.error_offset(Line(physical_line='spam(1)  '))
+        7
+        >>> checker.error_offset(Line(physical_line=' spam(1) '))
+        8
+        >>> checker.error_offset(Line(physical_line='spam(1)\t'))
+        7
+        >>> checker.error_offset(Line(physical_line='   '))
+        0
+        >>> checker.error_offset(Line(physical_line='\t '))
+        0
+        >>> checker.error_offset(Line(physical_line=' \t '))
+        0
+        """
+        without_newlines = rstrip_newlines(line.physical_line)
+        without_spaces = without_newlines.rstrip()
+        if without_newlines != without_spaces:
+            return len(without_spaces)
+
+
+class LineOfWhiteSpace(TrailingWhitespace):
+
+    original_test_cases = r"""
+                           Okay: spam(1)
+                           W293: class Foo(object):\n    \n    bang = 12
+                           """
+
+    code = "W293"
+    short_description = "blank line contains whitespace"
+
+    def error_offset(self, line):
+        r"""
+        >>> checker = LineOfWhiteSpace()
+        >>> checker.error_offset(Line(physical_line='spam(1)'))
+        >>> checker.error_offset(Line(physical_line='spam(1) '))
+        >>> checker.error_offset(Line(physical_line='spam(1)  '))
+        >>> checker.error_offset(Line(physical_line=' spam(1) '))
+        >>> checker.error_offset(Line(physical_line='spam(1)\t'))
+        >>> checker.error_offset(Line(physical_line='   '))
+        0
+        >>> checker.error_offset(Line(physical_line='\t '))
+        0
+        >>> checker.error_offset(Line(physical_line=' \t '))
+        0
+        """
+        without_newlines = rstrip_newlines(line.physical_line)
+        without_spaces = without_newlines.rstrip()
+        if without_newlines != without_spaces and not without_spaces:
+            return 0
 
 
 def trailing_blank_lines(physical_line, lines, line_number):
@@ -969,11 +1056,18 @@ class Checker(object):
                 offset, text = result
                 self.report_error(self.line_number, offset, text, check)
 
+        handled_error_classes = set()
         for cls in PHYSICAL_LINE_CHECKERS:
+
+            if cls in handled_error_classes:
+                # a subclass of this error has alreay been reported; don't re-report
+                continue
+
             instance = cls()
             line_obj = Line(physical_line=line, indent_char=self.indent_char)
-            error_offset = instance.first_error_offset(line_obj)
+            error_offset = instance.error_offset(line_obj)
             if error_offset is not None:
+                handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
                 self.report_error(self.line_number, error_offset, cls.description, cls.__name__)
 
     def build_tokens_line(self):
