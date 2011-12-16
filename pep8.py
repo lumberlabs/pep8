@@ -119,7 +119,6 @@ DEFAULT_IGNORE = 'E24'
 MAX_LINE_LENGTH = 79
 
 INDENT_REGEX = re.compile(r'([ \t]*)')
-SELFTEST_REGEX = re.compile(r'(Okay|[EW]\d{3}):\s(.*)')
 ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
 EXTRANEOUS_WHITESPACE_REGEX = re.compile(r'[[({] | []}),;:]')
@@ -1424,26 +1423,6 @@ def message(text):
 ##############################################################################
 
 
-def find_checks(argument_name):
-    """
-    Find all globally visible functions where the first argument name
-    starts with argument_name.
-    """
-    checks = []
-    for name, function in globals().items():
-        if not inspect.isfunction(function):
-            continue
-        args = inspect.getargspec(function)[0]
-        if args and args[0].startswith(argument_name):
-            codes = ERRORCODE_REGEX.findall(inspect.getdoc(function) or '')
-            for code in codes or ['']:
-                if not code or not ignore_code(code):
-                    checks.append((name, function, args))
-                    break
-    checks.sort()
-    return checks
-
-
 def leading_indentation(s, indent_chars=" \t"):
     r"""
     Returns the leading indentation for a string s.
@@ -1529,15 +1508,6 @@ class Checker(object):
         if line:
             self.check_physical(line)
         return line
-
-    def run_check(self, check, argument_names):
-        """
-        Run a check plugin.
-        """
-        arguments = []
-        for name in argument_names:
-            arguments.append(getattr(self, name))
-        return check(*arguments)
 
     def check_physical(self, line):
         """
@@ -1890,56 +1860,6 @@ def run_tests(filename):
         del testcase[:]
 
 
-def selftest():
-    """
-    Test all check functions with test cases in docstrings.
-    """
-    count_passed = 0
-    count_failed = 0
-    checks = options.physical_checks + options.logical_checks
-    for name, check, argument_names in checks:
-        for line in check.__doc__.splitlines():
-            line = line.lstrip()
-            match = SELFTEST_REGEX.match(line)
-            if match is None:
-                continue
-            code, source = match.groups()
-            checker = Checker(None)
-            for part in source.split(r'\n'):
-                part = part.replace(r'\t', '\t')
-                part = part.replace(r'\s', ' ')
-                checker.lines.append(part + '\n')
-            options.quiet = 2
-            checker.check_all()
-            error = None
-            if code == 'Okay':
-                if len(options.counters) > len(BENCHMARK_KEYS):
-                    codes = [key for key in options.counters.keys()
-                             if key not in BENCHMARK_KEYS]
-                    error = "incorrectly found %s" % ', '.join(codes)
-            elif not options.counters.get(code):
-                error = "failed to find %s" % code
-            # Reset the counters
-            reset_counters()
-            if not error:
-                count_passed += 1
-            else:
-                count_failed += 1
-                if len(checker.lines) == 1:
-                    print("pep8.py: %s: %s" %
-                          (error, checker.lines[0].rstrip()))
-                else:
-                    print("pep8.py: %s:" % error)
-                    for line in checker.lines:
-                        print(line.rstrip())
-    if options.verbose:
-        print("%d passed and %d failed." % (count_passed, count_failed))
-        if count_failed:
-            print("Test failed.")
-        else:
-            print("Test passed.")
-
-
 def process_options(arglist=None):
     """
     Process options passed either via arglist or via command line args.
@@ -1979,12 +1899,10 @@ def process_options(arglist=None):
                       help="measure processing speed")
     parser.add_option('--testsuite', metavar='dir',
                       help="run regression tests from dir")
-    parser.add_option('--doctest', action='store_true',
-                      help="run doctest on myself")
     options, args = parser.parse_args(arglist)
     if options.testsuite:
         args.append(options.testsuite)
-    if not args and not options.doctest:
+    if not args:
         parser.error('input not specified')
     options.prog = os.path.basename(sys.argv[0])
     options.exclude = options.exclude.split(',')
@@ -2001,14 +1919,12 @@ def process_options(arglist=None):
     elif options.select:
         # Ignore all checks which are not explicitly selected
         options.ignore = ['']
-    elif options.testsuite or options.doctest:
-        # For doctest and testsuite, all checks are required
+    elif options.testsuite:
+        # For testsuite, all checks are required
         options.ignore = []
     else:
         # The default choice: ignore controversial checks
         options.ignore = DEFAULT_IGNORE.split(',')
-    options.physical_checks = find_checks('physical_line')
-    options.logical_checks = find_checks('logical_line')
     options.counters = dict.fromkeys(BENCHMARK_KEYS, 0)
     options.messages = {}
     return options, args
@@ -2019,10 +1935,6 @@ def _main():
     Parse options and run checks on Python source.
     """
     options, args = process_options()
-    if options.doctest:
-        import doctest
-        doctest.testmod(verbose=options.verbose)
-        selftest()
     if options.testsuite:
         runner = run_tests
     else:
