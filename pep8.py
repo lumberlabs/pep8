@@ -109,6 +109,10 @@ try:
 except NameError:
     from sets import ImmutableSet as frozenset
 
+try:
+    import cStringIO as StringIO
+except ImportsError:
+    import StringIO
 
 DEFAULT_EXCLUDE = '.svn,CVS,.bzr,.hg,.git'
 DEFAULT_IGNORE = 'E24'
@@ -190,13 +194,9 @@ class LogicalLine(object):
         self.tokens = tokens
 
         if autotokenize:
-            line_iterator = logical_line.splitlines(True).__iter__()
-            def local_readline():
-                try:
-                    return line_iterator.next()
-                except StopIteration:
-                    return ""
-            self.tokens = tokenize.generate_tokens(local_readline)
+            line_io = StringIO.StringIO(self.logical_line)
+            self.tokens = tokenize.generate_tokens(line_io.readline)
+
 
 class Document(object):
 
