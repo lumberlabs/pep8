@@ -251,7 +251,7 @@ HasKeyError = checker_error("W601", ".has_key() is deprecated, use 'in'", "HasKe
 ExceptionWithCommaError = checker_error("W602", "deprecated form of raising exception", "ExceptionWithCommaError")
 DeprecatedNotEqualsError = checker_error("W603", "'<>' is deprecated, use '!='", "DeprecatedNotEqualsError")
 DeprecatedBackticksError = checker_error("W604", "backticks are deprecated, use 'repr()'", "DeprecatedBackticksError")
-
+MissingWhitespaceError = checker_error("E225", "missing whitespace around operator", "MissingWhitespaceError")
 
 class LineTooLongError(CheckerError):
     code = "E501"
@@ -733,7 +733,7 @@ def whitespace_around_operator(logical_line):
                             "E221 multiple spaces before operator")
 
 
-def missing_whitespace_around_operator(logical_line, tokens):
+class MissingWhitespaceAroundOperator(object):
     r"""
     - Always surround these binary operators with a single space on
       either side: assignment (=), augmented assignment (+=, -= etc.),
@@ -763,48 +763,83 @@ def missing_whitespace_around_operator(logical_line, tokens):
     E225: c = alpha -4
     E225: z = x **y
     """
-    parens = 0
-    need_space = False
-    prev_type = tokenize.OP
-    prev_text = prev_end = None
-    for token_type, text, start, end, line in tokens:
-        if token_type in (tokenize.NL, tokenize.NEWLINE, tokenize.ERRORTOKEN):
-            # ERRORTOKEN is triggered by backticks in Python 3000
-            continue
-        if text in ('(', 'lambda'):
-            parens += 1
-        elif text == ')':
-            parens -= 1
-        if need_space:
-            if start != prev_end:
-                need_space = False
-            elif text == '>' and prev_text == '<':
-                # Tolerate the "<>" operator, even if running Python 3
-                pass
-            else:
-                return prev_end, "E225 missing whitespace around operator"
-        elif token_type == tokenize.OP and prev_end is not None:
-            if text == '=' and parens:
-                # Allow keyword args or defaults: foo(bar=None).
-                pass
-            elif text in BINARY_OPERATORS:
-                need_space = True
-            elif text in UNARY_OPERATORS:
-                # Allow unary operators: -123, -x, +1.
-                # Allow argument unpacking: foo(*args, **kwargs).
-                if prev_type == tokenize.OP:
-                    if prev_text in '}])':
-                        need_space = True
-                elif prev_type == tokenize.NAME:
-                    if prev_text not in E225NOT_KEYWORDS:
-                        need_space = True
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, document=None):
+        r"""
+        >>> checker = MissingWhitespaceAroundOperator()
+        >>> checker.find_error(LogicalLine('i = i + 1', autotokenize=True))
+        >>> checker.find_error(LogicalLine('submitted += 1', autotokenize=True))
+        >>> checker.find_error(LogicalLine('x = x * 2 - 1', autotokenize=True))
+        >>> checker.find_error(LogicalLine('hypot2 = x * x + y * y', autotokenize=True))
+        >>> checker.find_error(LogicalLine('c = (a + b) * (a - b)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('foo(bar, key="word", *args, **kwargs)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('baz(**kwargs)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('negative = -1', autotokenize=True))
+        >>> checker.find_error(LogicalLine('spam(-1)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('alpha[:-i]', autotokenize=True))
+        >>> checker.find_error(LogicalLine('if not -5 < x < +5:\n    pass', autotokenize=True))
+        >>> checker.find_error(LogicalLine('lambda *args, **kw: (args, kw)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('i=i+1', autotokenize=True))
+        E225: (1, 1)
+        >>> checker.find_error(LogicalLine('submitted +=1', autotokenize=True))
+        E225: (1, 12)
+        >>> checker.find_error(LogicalLine('x = x*2 - 1', autotokenize=True))
+        E225: (1, 5)
+        >>> checker.find_error(LogicalLine('hypot2 = x*x + y*y', autotokenize=True))
+        E225: (1, 10)
+        >>> checker.find_error(LogicalLine('c = (a+b) * (a-b)', autotokenize=True))
+        E225: (1, 6)
+        >>> checker.find_error(LogicalLine('c = alpha -4', autotokenize=True))
+        E225: (1, 11)
+        >>> checker.find_error(LogicalLine('z = x **y', autotokenize=True))
+        E225: (1, 8)
+        """
+        tokens = line.tokens
+        parens = 0
+        need_space = False
+        prev_type = tokenize.OP
+        prev_text = prev_end = None
+        for token_type, text, start, end, line in tokens:
+            if token_type in (tokenize.NL, tokenize.NEWLINE, tokenize.ERRORTOKEN):
+                # ERRORTOKEN is triggered by backticks in Python 3000
+                continue
+            if text in ('(', 'lambda'):
+                parens += 1
+            elif text == ')':
+                parens -= 1
+            if need_space:
+                if start != prev_end:
+                    need_space = False
+                elif text == '>' and prev_text == '<':
+                    # Tolerate the "<>" operator, even if running Python 3
+                    pass
                 else:
+                    return MissingWhitespaceError(prev_end)
+            elif token_type == tokenize.OP and prev_end is not None:
+                if text == '=' and parens:
+                    # Allow keyword args or defaults: foo(bar=None).
+                    pass
+                elif text in BINARY_OPERATORS:
                     need_space = True
-            if need_space and start == prev_end:
-                return prev_end, "E225 missing whitespace around operator"
-        prev_type = token_type
-        prev_text = text
-        prev_end = end
+                elif text in UNARY_OPERATORS:
+                    # Allow unary operators: -123, -x, +1.
+                    # Allow argument unpacking: foo(*args, **kwargs).
+                    if prev_type == tokenize.OP:
+                        if prev_text in '}])':
+                            need_space = True
+                    elif prev_type == tokenize.NAME:
+                        if prev_text not in E225NOT_KEYWORDS:
+                            need_space = True
+                    else:
+                        need_space = True
+                if need_space and start == prev_end:
+                    return MissingWhitespaceError(prev_end)
+            prev_type = token_type
+            prev_text = text
+            prev_end = end
+
 
 
 class WhitespaceAroundComma(object):
