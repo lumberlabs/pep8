@@ -229,12 +229,12 @@ class TabsOrSpaces(object):
     pep8 = r"""
            Never mix tabs and spaces.
 
-           The most popular way of indenting Python is with spaces only.  The
-           second-most popular way is with tabs only.  Code indented with a mixture
-           of tabs and spaces should be converted to using spaces exclusively.  When
+           The most popular way of indenting Python is with spaces only. The
+           second-most popular way is with tabs only. Code indented with a mixture
+           of tabs and spaces should be converted to using spaces exclusively. When
            invoking the Python command line interpreter with the -t option, it issues
-           warnings about code that illegally mixes tabs and spaces.  When using -tt
-           these warnings become errors.  These options are highly recommended!
+           warnings about code that illegally mixes tabs and spaces. When using -tt
+           these warnings become errors. These options are highly recommended!
            """
 
     original_test_cases = r"""
@@ -274,7 +274,7 @@ class TabsObsolete(object):
     __metaclass__ = PhysicalLineChecker
 
     pep8 = r"""
-            For new projects, spaces-only are strongly recommended over tabs.  Most
+            For new projects, spaces-only are strongly recommended over tabs. Most
             editors have features that make this easy to do.
             """
 
@@ -540,7 +540,7 @@ def blank_lines(logical_line, blank_lines, indent_level, line_number,
     Method definitions inside a class are separated by a single blank line.
 
     Extra blank lines may be used (sparingly) to separate groups of related
-    functions.  Blank lines may be omitted between a bunch of related
+    functions. Blank lines may be omitted between a bunch of related
     one-liners (e.g. a set of dummy implementations).
 
     Use blank lines in functions, sparingly, to indicate logical sections.
@@ -850,7 +850,7 @@ def whitespace_before_inline_comment(logical_line, tokens):
     """
     Separate inline comments by at least two spaces.
 
-    An inline comment is a comment on the same line as a statement.  Inline
+    An inline comment is a comment on the same line as a statement. Inline
     comments should be separated by at least two spaces from the statement.
     They should start with a # and a single space.
 
@@ -1032,7 +1032,7 @@ class Python3000RaiseComma(object):
 
             The paren-using form is preferred because when the exception arguments
             are long or include string formatting, you don't need to use line
-            continuation characters thanks to the containing parentheses.  The older
+            continuation characters thanks to the containing parentheses. The older
             form will be removed in Python 3000.
             """
 
@@ -1461,7 +1461,7 @@ class Checker(object):
                         self.blank_lines_before_comment)
                     self.blank_lines = 0
                 if text.endswith('\n') and not parens:
-                    # The comment also ends a physical line.  This works around
+                    # The comment also ends a physical line. This works around
                     # Python < 2.6 behaviour, which does not generate NL after
                     # a comment which is on a line by itself.
                     self.tokens = []
@@ -1633,7 +1633,7 @@ def run_tests(filename):
     """
     Run all the tests from a file.
 
-    A test file can provide many tests.  Each test starts with a declaration.
+    A test file can provide many tests. Each test starts with a declaration.
     This declaration is a single line starting with '#:'.
     It declares codes of expected failures, separated by spaces or 'Okay'
     if no failure is expected.
