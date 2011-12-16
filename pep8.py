@@ -188,13 +188,24 @@ class PhysicalLine(object):
 class LogicalLine(object):
 
     def __init__(self, logical_line,
+                 line_number=None,
                  tokens=None, autotokenize=None,
                  blank_lines=None, blank_lines_before_comment=None):
+        """
+        >>> line = LogicalLine("    abc")
+        >>> line.dedented_line
+        'abc'
+        >>> line.indent_level
+        4
+        """
         self.logical_line = logical_line
         self.tokens = tokens
         self.blank_lines = blank_lines
         self.blank_lines_before_comment = blank_lines_before_comment
-        self.indent_level = indentation_level(leading_indentation(logical_line))
+        indentation = leading_indentation(logical_line)
+        self.indent_level = indentation_level(indentation)
+        self.dedented_line = self.logical_line[len(indentation):]
+        self.line_number = line_number
 
         if autotokenize:
             line_io = StringIO.StringIO(self.logical_line)
@@ -258,7 +269,8 @@ MissingWhitespaceError = checker_error("E225", "missing whitespace around operat
 IndentationNotMultipleOfFourError = checker_error("E111", "indentation is not a multiple of four", "IndentationNotMultipleOfFourError")
 InsufficientIndentationError = checker_error("E112", "expected an indented block", "InsufficientIndentationError")
 UnexpectedIndentationError = checker_error("E113", "unexpected indentation", "UnexpectedIndentationError")
-
+BlankLinesAfterDecoratorError = checker_error("E304", "blank lines found after function decorator", "BlankLinesAfterDecoratorError")
+MissingBlankLineError = checker_error("E301", "expected 1 blank line, found 0", "MissingBlankLineError")
 
 class LineTooLongError(CheckerError):
     code = "E501"
@@ -353,6 +365,14 @@ class ExtraneousWhitespaceBeforeSeparatorError(CheckerErrorWithContext):
     text_format = "whitespace before '%s'"
 
 
+class TooManyBlankLinesError(CheckerErrorWithContext):
+    code = "E303"
+    text_format = "too many blank lines (%d)"
+
+
+class ExpectedTwoBlankLinesError(CheckerErrorWithContext):
+    code = "E302"
+    text_format = "expected 2 blank lines, found %d"
 
 
 ##############################################################################
@@ -612,9 +632,7 @@ class MaximumLineLength(object):
 ##############################################################################
 
 
-def blank_lines(logical_line, blank_lines, indent_level, line_number,
-                previous_logical, previous_indent_level,
-                blank_lines_before_comment):
+class BlankLines(object):
     r"""
     Separate top-level function and class definitions with two blank lines.
 
@@ -635,23 +653,31 @@ def blank_lines(logical_line, blank_lines, indent_level, line_number,
     E303: def a():\n\n\n\n    pass
     E304: @decorator\n\ndef a():\n    pass
     """
-    if line_number == 1:
-        return  # Don't expect blank lines before the first line
-    max_blank_lines = max(blank_lines, blank_lines_before_comment)
-    if previous_logical.startswith('@'):
-        if max_blank_lines:
-            return 0, "E304 blank lines found after function decorator"
-    elif max_blank_lines > 2 or (indent_level and max_blank_lines == 2):
-        return 0, "E303 too many blank lines (%d)" % max_blank_lines
-    elif (logical_line.startswith('def ') or
-          logical_line.startswith('class ') or
-          logical_line.startswith('@')):
-        if indent_level:
-            if not (max_blank_lines or previous_indent_level < indent_level or
-                    DOCSTRING_REGEX.match(previous_logical)):
-                return 0, "E301 expected 1 blank line, found 0"
-        elif max_blank_lines != 2:
-            return 0, "E302 expected 2 blank lines, found %d" % max_blank_lines
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, previous_line=None, document=None):
+        r"""
+        # >>> checker = BlankLines()
+        TODO
+        """
+        if line.line_number == 1 or not previous_line:
+            return  # Don't expect blank lines before the first line
+        max_blank_lines = max(line.blank_lines, line.blank_lines_before_comment)
+        if previous_line.dedented_line.startswith('@'):
+            if max_blank_lines:
+                return BlankLinesAfterDecoratorError()
+        elif max_blank_lines > 2 or (line.indent_level and max_blank_lines == 2):
+            return TooManyBlankLinesError(0, max_blank_lines)
+        elif (line.dedented_line.startswith('def ') or
+              line.dedented_line.startswith('class ') or
+              line.dedented_line.startswith('@')):
+            if line.indent_level:
+                if not (max_blank_lines or previous_line.indent_level < line.indent_level or
+                        DOCSTRING_REGEX.match(previous_line.logical_line)):
+                    return MissingBlankLineError()
+            elif max_blank_lines != 2:
+                return ExpectedTwoBlankLinesError(0, max_blank_lines)
 
 
 class ExtraneousWhitespace(object):
@@ -792,6 +818,8 @@ class Indentation(object):
         """
         if document.indent_char == ' ' and line.indent_level % 4:
             return IndentationNotMultipleOfFourError()
+        if not previous_line:
+            return
         indent_expect = previous_line.logical_line.endswith(':')
         if indent_expect and line.indent_level <= previous_line.indent_level:
             return InsufficientIndentationError()
@@ -1481,6 +1509,7 @@ class Checker(object):
         self.indent_char = most_common_indent_char(self.lines)  # TODO: Remove me
         self.document = Document(num_lines=len(self.lines),
                                  indent_char=most_common_indent_char(self.lines))
+        self.previous_line_obj = None
 
     def readline(self):
         """
@@ -1587,16 +1616,17 @@ class Checker(object):
                 self.report_error(original_number, original_offset,
                                   text, check)
 
+        line_obj = LogicalLine(indent + self.logical_line,
+                               tokens=self.tokens,
+                               blank_lines=self.blank_lines,
+                               blank_lines_before_comment=self.blank_lines_before_comment,
+                               line_number=self.line_number)
+
         for cls in LOGICAL_LINE_CHECKERS:
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = LogicalLine(indent + self.logical_line,
-                                   tokens=self.tokens,
-                                   blank_lines=self.blank_lines,
-                                   blank_lines_before_comment=self.blank_lines_before_comment)
-            previous_line_obj = LogicalLine(self.document.indent_char * self.previous_indent_level + self.previous_logical)
-            error = instance.find_error(line=line_obj, previous_line=previous_line_obj, document=self.document)
+            error = instance.find_error(line=line_obj, previous_line=self.previous_line_obj, document=self.document)
             if error is not None:
                 error_column = error.column or 0
 
@@ -1611,6 +1641,7 @@ class Checker(object):
 
                 self.report_error(original_number, original_offset, error.description, cls)
 
+        self.previous_line_obj = line_obj
         self.previous_logical = self.logical_line
 
 
