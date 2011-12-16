@@ -287,6 +287,18 @@ class TabAfterSeparatorError(WhitespaceSeparatorError):
     space_type = "tab"
 
 
+class WhitespaceBeforeParametersError(CheckerError):
+    code = "E211"
+
+    def __init__(self, column, context):
+        self.column = column
+        self.context = context
+
+    @property
+    def text(self):
+        return "whitespace before '%s'" % self.context
+
+
 ##############################################################################
 # Plugins (checker classes) for physical lines
 ##############################################################################
@@ -672,7 +684,7 @@ def indentation(logical_line, previous_logical, indent_char,
         return 0, "E113 unexpected indentation"
 
 
-def whitespace_before_parameters(logical_line, tokens):
+class WhitespaceBeforeParameters(object):
     """
     Avoid extraneous whitespace in the following situations:
 
@@ -689,23 +701,39 @@ def whitespace_before_parameters(logical_line, tokens):
     E211: dict ['key'] = list[index]
     E211: dict['key'] = list [index]
     """
-    prev_type = tokens[0][0]
-    prev_text = tokens[0][1]
-    prev_end = tokens[0][3]
-    for index in range(1, len(tokens)):
-        token_type, text, start, end, line = tokens[index]
-        if (token_type == tokenize.OP and
-            text in '([' and
-            start != prev_end and
-            (prev_type == tokenize.NAME or prev_text in '}])') and
-            # Syntax "class A (B):" is allowed, but avoid it
-            (index < 2 or tokens[index - 2][1] != 'class') and
-            # Allow "return (a.foo for a in range(5))"
-            (not keyword.iskeyword(prev_text))):
-            return prev_end, "E211 whitespace before '%s'" % text
-        prev_type = token_type
-        prev_text = text
-        prev_end = end
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, document=None):
+        r"""
+        >>> checker = WhitespaceBeforeParameters()
+        >>> checker.find_error(LogicalLine('spam(1)', autotokenize=True))
+        >>> checker.find_error(LogicalLine('spam (1)', autotokenize=True))
+        E211: (1, 4)
+        >>> checker.find_error(LogicalLine('dict["key"] = list[index]', autotokenize=True))
+        >>> checker.find_error(LogicalLine('dict ["key"] = list[index]', autotokenize=True))
+        E211: (1, 4)
+        >>> checker.find_error(LogicalLine('dict["key"] = list [index]', autotokenize=True))
+        E211: (1, 18)
+        """
+        tokens = list(line.tokens)
+        prev_type = tokens[0][0]
+        prev_text = tokens[0][1]
+        prev_end = tokens[0][3]
+        for index in range(1, len(tokens)):
+            token_type, text, start, end, line = tokens[index]
+            if (token_type == tokenize.OP and
+                text in '([' and
+                start != prev_end and
+                (prev_type == tokenize.NAME or prev_text in '}])') and
+                # Syntax "class A (B):" is allowed, but avoid it
+                (index < 2 or tokens[index - 2][1] != 'class') and
+                # Allow "return (a.foo for a in range(5))"
+                (not keyword.iskeyword(prev_text))):
+                return WhitespaceBeforeParametersError(prev_end, text)
+            prev_type = token_type
+            prev_text = text
+            prev_end = end
 
 
 def whitespace_around_operator(logical_line):
