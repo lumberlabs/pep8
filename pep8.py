@@ -122,8 +122,6 @@ DOCSTRING_REGEX = re.compile(r'u?r?["\']')
 WHITESPACE_AROUND_OPERATOR_REGEX = \
     re.compile('([^\w\s]*)\s*(\t|  )\s*([^\w\s]*)')
 EXTRANEOUS_WHITESPACE_REGEX = re.compile(r'[[({] | []}),;:]')
-WHITESPACE_AROUND_NAMED_PARAMETER_REGEX = \
-    re.compile(r'[()]|\s=[^=]|[^=!<>]=\s')
 
 
 WHITESPACE = ' \t'
@@ -827,32 +825,54 @@ def whitespace_around_comma(logical_line):
             return found + 1, "E242 tab after '%s'" % separator
 
 
-def whitespace_around_named_parameter_equals(logical_line):
-    """
-    Don't use spaces around the '=' sign when used to indicate a
-    keyword argument or a default parameter value.
+class WhitespaceAroundNamedParameterEquals(object):
+    __metaclass__ = LogicalLineChecker
 
-    Okay: def complex(real, imag=0.0):
-    Okay: return magic(r=real, i=imag)
-    Okay: boolean(a == b)
-    Okay: boolean(a != b)
-    Okay: boolean(a <= b)
-    Okay: boolean(a >= b)
+    pep8 = """
+           Don't use spaces around the '=' sign when used to indicate a
+           keyword argument or a default parameter value.
+           """
 
-    E251: def complex(real, imag = 0.0):
-    E251: return magic(r = real, i = imag)
-    """
-    parens = 0
-    for match in WHITESPACE_AROUND_NAMED_PARAMETER_REGEX.finditer(
-            logical_line):
-        text = match.group()
-        if parens and len(text) == 3:
-            issue = "E251 no spaces around keyword / parameter equals"
-            return match.start(), issue
-        if text == '(':
-            parens += 1
-        elif text == ')':
-            parens -= 1
+    original_test_cases = """
+                          Okay: def complex(real, imag=0.0):
+                          Okay: return magic(r=real, i=imag)
+                          Okay: boolean(a == b)
+                          Okay: boolean(a != b)
+                          Okay: boolean(a <= b)
+                          Okay: boolean(a >= b)
+
+                          E251: def complex(real, imag = 0.0):
+                          E251: return magic(r = real, i = imag)
+                          """
+
+    code = "E251"
+    short_description = "no spaces around keyword / parameter equals"
+
+    WHITESPACE_AROUND_NAMED_PARAMETER_REGEX = re.compile(r'[()]|\s=[^=]|[^=!<>]=\s')
+
+    def error_offset(self, line, document=None):
+        """
+        >>> checker = WhitespaceAroundNamedParameterEquals()
+        >>> checker.error_offset(LogicalLine('def complex(real, imag=0.0):'))
+        >>> checker.error_offset(LogicalLine('return magic(r=real, i=imag)'))
+        >>> checker.error_offset(LogicalLine('boolean(a == b)'))
+        >>> checker.error_offset(LogicalLine('boolean(a != b)'))
+        >>> checker.error_offset(LogicalLine('boolean(a <= b)'))
+        >>> checker.error_offset(LogicalLine('boolean(a >= b)'))
+        >>> checker.error_offset(LogicalLine('def complex(real, imag = 0.0):'))
+        22
+        >>> checker.error_offset(LogicalLine('return magic(r = real, i = imag)'))
+        14
+        """
+        parens = 0
+        for match in self.WHITESPACE_AROUND_NAMED_PARAMETER_REGEX.finditer(line.logical_line):
+            text = match.group()
+            if parens and len(text) == 3:
+                return match.start()
+            if text == '(':
+                parens += 1
+            elif text == ')':
+                parens -= 1
 
 
 def extract_comments(tokens):
