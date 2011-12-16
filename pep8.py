@@ -94,7 +94,6 @@ for space.
 
 __version__ = '0.5.1dev'
 
-import collections
 import os
 import sys
 import re
@@ -145,31 +144,13 @@ args = None
 # Metaclasses and registries for cleaners
 ##############################################################################
 
-PHYSICAL_LINE_CHECKERS = collections.deque()
-LOGICAL_LINE_CHECKERS = collections.deque()
+PHYSICAL_LINE_CHECKERS = set()
+LOGICAL_LINE_CHECKERS = set()
 
 
 class LineChecker(type):
 
     def __new__(metacls, name, bases, dictionary):
-        # validation
-        for required_attr in ("code", "short_description", "error_offset"):
-            if required_attr not in dictionary and not any(hasattr(base, required_attr) for base in bases):
-                raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
-
-        # cleanup
-        for dedent_field in ("original_test_cases", ):
-            if dedent_field not in dictionary:
-                # must be in a superclass
-                for base in bases:
-                    if hasattr(base, dedent_field):
-                        dictionary[dedent_field] = getattr(base, dedent_field)
-                        break
-            dictionary[dedent_field] = textwrap.dedent(dictionary[dedent_field]).strip("\n")
-
-        # additional fields
-        dictionary["description"] = dictionary["code"] + " " + dictionary["short_description"]
-
         # set up a generic __init__ that has kwargs
         if "__init__" not in dictionary:
             def default_init(self, **kwargs):
@@ -180,8 +161,7 @@ class LineChecker(type):
 
     def __init__(cls, name, bases, dictionary):
         # registration
-        # appendleft because this guarantees that subclasses will always be listed *before* their superclasses.
-        cls.registry.appendleft(cls)
+        cls.registry.add(cls)
 
 
 class PhysicalLineChecker(LineChecker):
@@ -226,9 +206,70 @@ class Document(object):
 
 
 ##############################################################################
-# Plugins (checker classes) for physical lines
+# Errors and warnings
 ##############################################################################
 
+class CheckerError(object):
+    "The base class for all checker errors."
+
+    def __init__(self, column=None):
+        self.column = column
+
+    @property
+    def description(self):
+        return "%s %s" % (self.code, self.text)
+
+    def __repr__(self):
+        # This is a lame __repr__ implementation, but it's kept simple and
+        # minimal so that doctests are easy to write and read.
+        if self.column is not None:
+            return "%s: %s" % (self.code, self.column)
+        else:
+            return self.code
+
+
+def checker_error(error_code, error_text, error_class_name):
+    class CheckerErrorSubclass(CheckerError):
+        code = error_code
+        text = error_text
+    CheckerErrorSubclass.__name__ = error_class_name
+    return CheckerErrorSubclass
+
+NoSpaceAroundKeywordEqualsError = checker_error("E251", "no spaces around keyword / parameter equals", "NoSpaceAroundKeywordEqualsError")
+NoWhitespaceAfterInlineCommentError = checker_error("E262", "inline comment should start with '# '", "NoWhitespaceAfterInlineCommentError")
+MixedTabsAndSpacesError = checker_error("E101", "indentation contains mixed spaces and tabs", "MixedTabsAndSpacesError")
+UsedTabsError = checker_error("W191", "indentation contains tabs", "UsedTabsError")
+TrailingWhitespaceError = checker_error("W291", "trailing whitespace", "TrailingWhitespaceError")
+LineOfWhiteSpaceError = checker_error("W293", "blank line contains whitespace", "LineOfWhiteSpaceError")
+BlankLineAtEOFError = checker_error("W391", "blank line at end of file", "BlankLineAtEOFError")
+NoNewlineAtEOFError = checker_error("W292", "no newline at end of file", "NoNewlineAtEOFError")
+NotEnoughWhitespaceBeforeInlineCommentError = checker_error("E261", "at least two spaces before inline comment", "NotEnoughWhitespaceBeforeInlineCommentError")
+MultipleImportsOnOneLineError = checker_error("E401", "multiple imports on one line", "MultipleImportsOnOneLineError")
+CompoundStatementWithColonError = checker_error("E701", "multiple statements on one line (colon)", "CompoundStatementWithColonError")
+CompoundStatementWithSemicolonError = checker_error("E702", "multiple statements on one line (semicolon)", "CompoundStatementWithSemicolonError")
+HasKeyError = checker_error("W601", ".has_key() is deprecated, use 'in'", "HasKeyError")
+ExceptionWithCommaError = checker_error("W602", "deprecated form of raising exception", "ExceptionWithCommaError")
+DeprecatedNotEqualsError = checker_error("W603", "'<>' is deprecated, use '!='", "DeprecatedNotEqualsError")
+DeprecatedBackticksError = checker_error("W604", "backticks are deprecated, use 'repr()'", "DeprecatedBackticksError")
+
+
+class LineTooLongError(CheckerError):
+    code = "E501"
+
+    def __init__(self, line_length, max_line_length):
+        self.column = max_line_length
+        self.max_line_length = max_line_length
+        self.line_length = line_length
+
+    @property
+    def text(self):
+        return "line too long (%d characters)" % self.line_length
+
+
+
+##############################################################################
+# Plugins (checker classes) for physical lines
+##############################################################################
 
 class TabsOrSpaces(object):
     r"""
@@ -240,78 +281,69 @@ class TabsOrSpaces(object):
     invoking the Python command line interpreter with the -t option, it issues
     warnings about code that illegally mixes tabs and spaces. When using -tt
     these warnings become errors. These options are highly recommended!
+
+    Okay: if a == 0:\n        a = 1\n        b = 1
+    E101: if a == 0:\n        a = 1\n\tb = 1
     """
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: if a == 0:\n        a = 1\n        b = 1
-                           E101: if a == 0:\n        a = 1\n\tb = 1
-                           """
-
-    code = "E101"
-    short_description = "indentation contains mixed spaces and tabs"
-
-    def error_offset(self, line, document):
+    def find_error(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.error_offset(PhysicalLine('if a == 0:'), Document(indent_char=' '))
-        >>> checker.error_offset(PhysicalLine('        a = 1'), Document(indent_char=' '))
-        >>> checker.error_offset(PhysicalLine('\ta = 1'), Document(indent_char=' '))
-        0
-        >>> checker.error_offset(PhysicalLine('        \ta = 1'), Document(indent_char=' '))
-        8
-        >>> checker.error_offset(PhysicalLine('\t        a = 1'), Document(indent_char=' '))
-        0
-        >>> checker.error_offset(PhysicalLine('        a = 1'), Document(indent_char='\t'))
-        0
-        >>> checker.error_offset(PhysicalLine('\ta = 1'), Document(indent_char='\t'))
-        >>> checker.error_offset(PhysicalLine('        \ta = 1'), Document(indent_char='\t'))
-        0
-        >>> checker.error_offset(PhysicalLine('\t        a = 1'), Document(indent_char='\t'))
-        1
+        >>> checker.find_error(PhysicalLine('if a == 0:'), Document(indent_char=' '))
+        >>> checker.find_error(PhysicalLine('        a = 1'), Document(indent_char=' '))
+        >>> checker.find_error(PhysicalLine('\ta = 1'), Document(indent_char=' '))
+        E101: 0
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), Document(indent_char=' '))
+        E101: 8
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), Document(indent_char=' '))
+        E101: 0
+        >>> checker.find_error(PhysicalLine('        a = 1'), Document(indent_char='\t'))
+        E101: 0
+        >>> checker.find_error(PhysicalLine('\ta = 1'), Document(indent_char='\t'))
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), Document(indent_char='\t'))
+        E101: 0
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), Document(indent_char='\t'))
+        E101: 1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
         for offset, char in enumerate(indent):
             if char != document.indent_char:
-                return offset
+                return MixedTabsAndSpacesError(offset)
 
 
 class TabsObsolete(object):
     r"""
     For new projects, spaces-only are strongly recommended over tabs. Most
     editors have features that make this easy to do.
+
+    Okay: if True:\n    return
+    W191: if True:\n\treturn
     """
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: if True:\n    return
-                           W191: if True:\n\treturn
-                           """
-
-    code = "W191"
-    short_description = "indentation contains tabs"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = TabsObsolete()
-        >>> checker.error_offset(PhysicalLine('a == 0'))
-        >>> checker.error_offset(PhysicalLine(' a = 0'))
-        >>> checker.error_offset(PhysicalLine('  a = 0'))
-        >>> checker.error_offset(PhysicalLine('   a = 0'))
-        >>> checker.error_offset(PhysicalLine('\ta = 0'))
-        0
-        >>> checker.error_offset(PhysicalLine('\t\ta = 0'))
-        0
-        >>> checker.error_offset(PhysicalLine(' \t\ta = 0'))
-        1
-        >>> checker.error_offset(PhysicalLine('    \t\ta = 0'))
-        4
+        >>> checker.find_error(PhysicalLine('a == 0'))
+        >>> checker.find_error(PhysicalLine(' a = 0'))
+        >>> checker.find_error(PhysicalLine('  a = 0'))
+        >>> checker.find_error(PhysicalLine('   a = 0'))
+        >>> checker.find_error(PhysicalLine('\ta = 0'))
+        W191: 0
+        >>> checker.find_error(PhysicalLine('\t\ta = 0'))
+        W191: 0
+        >>> checker.find_error(PhysicalLine(' \t\ta = 0'))
+        W191: 1
+        >>> checker.find_error(PhysicalLine('    \t\ta = 0'))
+        W191: 4
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
         try:
-            return indent.index('\t')
+            column = indent.index('\t')
+            return UsedTabsError(column)
         except ValueError:
             pass
 
@@ -355,130 +387,89 @@ class TrailingWhitespace(object):
 
     The warning returned varies on whether the line itself is blank, for easier
     filtering for those who want to indent their blank lines.
+
+    Okay: spam(1)
+    W291: spam(1)\s
+    W293: class Foo(object):\n    \n    bang = 12
     """
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: spam(1)
-                           W291: spam(1)\s
-                           """
-
-    code = "W291"
-    short_description = "trailing whitespace"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = TrailingWhitespace()
-        >>> checker.error_offset(PhysicalLine('spam(1)'))
-        >>> checker.error_offset(PhysicalLine('spam(1) '))
-        7
-        >>> checker.error_offset(PhysicalLine('spam(1)  '))
-        7
-        >>> checker.error_offset(PhysicalLine(' spam(1) '))
-        8
-        >>> checker.error_offset(PhysicalLine('spam(1)\t'))
-        7
-        >>> checker.error_offset(PhysicalLine('   '))
-        0
-        >>> checker.error_offset(PhysicalLine('\t '))
-        0
-        >>> checker.error_offset(PhysicalLine(' \t '))
-        0
-        """
-        without_newlines = rstrip_newlines(line.physical_line)
-        without_spaces = without_newlines.rstrip()
-        if without_newlines != without_spaces:
-            return len(without_spaces)
-
-
-class LineOfWhiteSpace(TrailingWhitespace):
-
-    original_test_cases = r"""
-                           Okay: spam(1)
-                           W293: class Foo(object):\n    \n    bang = 12
-                           """
-
-    code = "W293"
-    short_description = "blank line contains whitespace"
-
-    def error_offset(self, line, document=None):
-        r"""
-        >>> checker = LineOfWhiteSpace()
-        >>> checker.error_offset(PhysicalLine('spam(1)'))
-        >>> checker.error_offset(PhysicalLine('spam(1) '))
-        >>> checker.error_offset(PhysicalLine('spam(1)  '))
-        >>> checker.error_offset(PhysicalLine(' spam(1) '))
-        >>> checker.error_offset(PhysicalLine('spam(1)\t'))
-        >>> checker.error_offset(PhysicalLine('   '))
-        0
-        >>> checker.error_offset(PhysicalLine('\t '))
-        0
-        >>> checker.error_offset(PhysicalLine(' \t '))
-        0
+        >>> checker.find_error(PhysicalLine('spam(1)'))
+        >>> checker.find_error(PhysicalLine('spam(1) '))
+        W291: 7
+        >>> checker.find_error(PhysicalLine('spam(1)  '))
+        W291: 7
+        >>> checker.find_error(PhysicalLine(' spam(1) '))
+        W291: 8
+        >>> checker.find_error(PhysicalLine('spam(1)\t'))
+        W291: 7
+        >>> checker.find_error(PhysicalLine('   '))
+        W293
+        >>> checker.find_error(PhysicalLine('\t '))
+        W293
+        >>> checker.find_error(PhysicalLine(' \t '))
+        W293
         """
         without_newlines = rstrip_newlines(line.physical_line)
         without_spaces = without_newlines.rstrip()
         if without_newlines != without_spaces and not without_spaces:
-            return 0
+            return LineOfWhiteSpaceError()
+        if without_newlines != without_spaces:
+            column = len(without_spaces)
+            return TrailingWhitespaceError(column)
 
 
 class TrailingBlankLines(object):
     r"""
     JCR: Trailing blank lines are superfluous.
+
+    Okay: spam(1)
+    W391: spam(1)\n
     """
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: spam(1)
-                           W391: spam(1)\n
-                           """
-
-    code = "W391"
-    short_description = "blank line at end of file"
-
-    def error_offset(self, line, document):
+    def find_error(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
-        >>> checker.error_offset(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
-        >>> checker.error_offset(PhysicalLine('', line_number=1), Document(num_lines=1))
-        0
-        >>> checker.error_offset(PhysicalLine('', line_number=1), Document(num_lines=2))
-        >>> checker.error_offset(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.find_error(PhysicalLine('', line_number=1), Document(num_lines=1))
+        W391
+        >>> checker.find_error(PhysicalLine('', line_number=1), Document(num_lines=2))
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
-            return 0
+            return BlankLineAtEOFError()
 
 
 class MissingNewline(object):
-    r"""
+    """
     JCR: The last line should have a newline.
     """
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = ""
-
-    code = "W292"
-    short_description = "no newline at end of file"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = MissingNewline()
-        >>> checker.error_offset(PhysicalLine(''))
-        0
-        >>> checker.error_offset(PhysicalLine('\n'))
-        >>> checker.error_offset(PhysicalLine('abc'))
-        3
-        >>> checker.error_offset(PhysicalLine('abc\n'))
+        >>> checker.find_error(PhysicalLine(''))
+        W292: 0
+        >>> checker.find_error(PhysicalLine('\n'))
+        >>> checker.find_error(PhysicalLine('abc'))
+        W292: 3
+        >>> checker.find_error(PhysicalLine('abc\n'))
         """
         if line.physical_line.rstrip() == line.physical_line:
-            return len(line.physical_line)
+            column = len(line.physical_line)
+            return NoNewlineAtEOFError(column)
 
 
 class MaximumLineLength(object):
-    r"""
+    """
     Limit all lines to a maximum of 79 characters.
     
     There are still many devices around that are limited to 80 character
@@ -494,29 +485,22 @@ class MaximumLineLength(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    original_test_cases = ""
-
-    code = "E501"
-    short_description = "line too long"
-    # TODO: Parameterize this, a la:
-    # short_description = "line too long (%d characters)" % length
-
     def __init__(self, max_line_length=MAX_LINE_LENGTH, **kwargs):
         self.max_line_length = max_line_length
 
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = MaximumLineLength()
-        >>> checker.error_offset(PhysicalLine('a' * 80))
-        79
-        >>> checker.error_offset(PhysicalLine('a' * 79))
-        >>> checker.error_offset(PhysicalLine('a' * 200))
-        79
-        >>> checker.error_offset(PhysicalLine(''))
+        >>> checker.find_error(PhysicalLine('a' * 80))
+        E501: 79
+        >>> checker.find_error(PhysicalLine('a' * 79))
+        >>> checker.find_error(PhysicalLine('a' * 200))
+        E501: 79
+        >>> checker.find_error(PhysicalLine(''))
         >>> checker3 = MaximumLineLength(max_line_length=3)
-        >>> checker3.error_offset(PhysicalLine("123"))
-        >>> checker3.error_offset(PhysicalLine("1234"))
-        3
+        >>> checker3.find_error(PhysicalLine("123"))
+        >>> checker3.find_error(PhysicalLine("1234"))
+        E501: 3
         """
         stripped = line.physical_line.rstrip()
         length = len(stripped)
@@ -531,7 +515,8 @@ class MaximumLineLength(object):
             except UnicodeDecodeError:
                 pass
         if length > self.max_line_length:
-            return self.max_line_length
+            return LineTooLongError(line_length=length,
+                                    max_line_length=self.max_line_length)
 
 
 ##############################################################################
@@ -827,247 +812,178 @@ def whitespace_around_comma(logical_line):
 
 
 class WhitespaceAroundNamedParameterEquals(object):
-    """
+    r"""
     Don't use spaces around the '=' sign when used to indicate a
     keyword argument or a default parameter value.
+
+    Okay: def complex(real, imag=0.0):
+    Okay: return magic(r=real, i=imag)
+    Okay: boolean(a == b)
+    Okay: boolean(a != b)
+    Okay: boolean(a <= b)
+    Okay: boolean(a >= b)
+
+    E251: def complex(real, imag = 0.0):
+    E251: return magic(r = real, i = imag)
     """
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = """
-                          Okay: def complex(real, imag=0.0):
-                          Okay: return magic(r=real, i=imag)
-                          Okay: boolean(a == b)
-                          Okay: boolean(a != b)
-                          Okay: boolean(a <= b)
-                          Okay: boolean(a >= b)
-
-                          E251: def complex(real, imag = 0.0):
-                          E251: return magic(r = real, i = imag)
-                          """
-
-    code = "E251"
-    short_description = "no spaces around keyword / parameter equals"
-
     WHITESPACE_AROUND_NAMED_PARAMETER_REGEX = re.compile(r'[()]|\s=[^=]|[^=!<>]=\s')
 
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         """
         >>> checker = WhitespaceAroundNamedParameterEquals()
-        >>> checker.error_offset(LogicalLine('def complex(real, imag=0.0):'))
-        >>> checker.error_offset(LogicalLine('return magic(r=real, i=imag)'))
-        >>> checker.error_offset(LogicalLine('boolean(a == b)'))
-        >>> checker.error_offset(LogicalLine('boolean(a != b)'))
-        >>> checker.error_offset(LogicalLine('boolean(a <= b)'))
-        >>> checker.error_offset(LogicalLine('boolean(a >= b)'))
-        >>> checker.error_offset(LogicalLine('def complex(real, imag = 0.0):'))
-        22
-        >>> checker.error_offset(LogicalLine('return magic(r = real, i = imag)'))
-        14
+        >>> checker.find_error(LogicalLine('def complex(real, imag=0.0):'))
+        >>> checker.find_error(LogicalLine('return magic(r=real, i=imag)'))
+        >>> checker.find_error(LogicalLine('boolean(a == b)'))
+        >>> checker.find_error(LogicalLine('boolean(a != b)'))
+        >>> checker.find_error(LogicalLine('boolean(a <= b)'))
+        >>> checker.find_error(LogicalLine('boolean(a >= b)'))
+        >>> checker.find_error(LogicalLine('def complex(real, imag = 0.0):'))
+        E251: 22
+        >>> checker.find_error(LogicalLine('return magic(r = real, i = imag)'))
+        E251: 14
         """
         parens = 0
         for match in self.WHITESPACE_AROUND_NAMED_PARAMETER_REGEX.finditer(line.logical_line):
             text = match.group()
             if parens and len(text) == 3:
-                return match.start()
+                column = match.start()
+                return NoSpaceAroundKeywordEqualsError(column)
             if text == '(':
                 parens += 1
             elif text == ')':
                 parens -= 1
 
 
-def extract_comments(tokens):
-    prev_end = (0, 0)
-    for token_type, text, start, end, line in tokens:
-        if token_type == tokenize.NL:
-            continue
-        if token_type == tokenize.COMMENT:
-            # TODO: What does this if statement do? Write a test for it.
-            if not line[:start[1]].strip():
+class WhitespaceAroundInlineComment(object):
+    """
+    Separate inline comments by at least two spaces.
+    
+    An inline comment is a comment on the same line as a statement. Inline
+    comments should be separated by at least two spaces from the statement.
+    They should start with a # and a single space.
+
+    Okay: x = x + 1  # Increment x
+    Okay: x = x + 1    # Increment x
+    E261: x = x + 1 # Increment x
+    E262: x = x + 1  #Increment x
+    E262: x = x + 1  #  Increment x
+    """
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, document=None):
+        """
+        >>> checker = WhitespaceAroundInlineComment()
+        >>> checker.find_error(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
+        >>> checker.find_error(LogicalLine('x = x + 1    # Increment x', autotokenize=True))
+        >>> checker.find_error(LogicalLine('x = x + 1 # Increment x', autotokenize=True))
+        E261: (1, 9)
+        >>> checker.find_error(LogicalLine('x = x + 1  #Increment x', autotokenize=True))
+        E262: (1, 11)
+        >>> checker.find_error(LogicalLine('x = x + 1  #  Increment x', autotokenize=True))
+        E262: (1, 11)
+        """
+        prev_end = (0, 0)
+        for token_type, text, start, end, line in line.tokens:
+            if token_type == tokenize.NL:
                 continue
-            yield text, start, prev_end
-        else:
-            prev_end = end
-
-
-class WhitespaceAfterInlineComment(object):
-    """
-    Separate inline comments by at least two spaces.
-    
-    An inline comment is a comment on the same line as a statement. Inline
-    comments should be separated by at least two spaces from the statement.
-    They should start with a # and a single space.
-    """
-
-    __metaclass__ = LogicalLineChecker
-
-    original_test_cases = """
-                          Okay: x = x + 1  # Increment x
-                          Okay: x = x + 1    # Increment x
-                          E262: x = x + 1  #Increment x
-                          E262: x = x + 1  #  Increment x
-                          """
-
-    code = "E262"
-    short_description = "inline comment should start with '# '"
-
-    def error_offset(self, line, document=None):
-        """
-        >>> checker = WhitespaceAfterInlineComment()
-        >>> checker.error_offset(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
-        >>> checker.error_offset(LogicalLine('x = x + 1    # Increment x', autotokenize=True))
-        >>> checker.error_offset(LogicalLine('x = x + 1  #Increment x', autotokenize=True))
-        (1, 11)
-        >>> checker.error_offset(LogicalLine('x = x + 1  #  Increment x', autotokenize=True))
-        (1, 11)
-        """
-        for text, start, prev_end in extract_comments(line.tokens):
-            if (len(text) > 1 and text.startswith('#  ')
-                           or not text.startswith('# ')):
-                return start
-
-
-class WhitespaceBeforeInlineComment(object):
-    """
-    Separate inline comments by at least two spaces.
-    
-    An inline comment is a comment on the same line as a statement. Inline
-    comments should be separated by at least two spaces from the statement.
-    They should start with a # and a single space.
-    """
-
-    __metaclass__ = LogicalLineChecker
-
-    original_test_cases = """
-                          Okay: x = x + 1  # Increment x
-                          Okay: x = x + 1    # Increment x
-                          E261: x = x + 1 # Increment x
-                          """
-
-    code = "E261"
-    short_description = "at least two spaces before inline comment"
-
-    def error_offset(self, line, document=None):
-        """
-        >>> checker = WhitespaceBeforeInlineComment()
-        >>> checker.error_offset(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
-        >>> checker.error_offset(LogicalLine('x = x + 1    # Increment x', autotokenize=True))
-        >>> checker.error_offset(LogicalLine('x = x + 1 # Increment x', autotokenize=True))
-        (1, 9)
-        """
-        for text, start, prev_end in extract_comments(line.tokens):
-            if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
-                return prev_end
+            if token_type == tokenize.COMMENT:
+                # TODO: What does this if statement do? Write a test for it.
+                if not line[:start[1]].strip():
+                    continue
+                # TODO: "A and B or C" is ambiguous. Ick.
+                if (len(text) > 1 and text.startswith('#  ')
+                               or not text.startswith('# ')):
+                    return NoWhitespaceAfterInlineCommentError(start)
+                if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
+                    return NotEnoughWhitespaceBeforeInlineCommentError(prev_end)
+            else:
+                prev_end = end
 
 
 class ImportsOnSeparateLines(object):
-    """
+    r"""
     Imports should usually be on separate lines.
+
+    Okay: import os\nimport sys
+    E401: import sys, os
+    
+    Okay: from subprocess import Popen, PIPE
+    Okay: from myclas import MyClass
+    Okay: from foo.bar.yourclass import YourClass
+    Okay: import myclass
+    Okay: import foo.bar.yourclass
     """
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: import os\nimport sys
-                           E401: import sys, os
-                           
-                           Okay: from subprocess import Popen, PIPE
-                           Okay: from myclas import MyClass
-                           Okay: from foo.bar.yourclass import YourClass
-                           Okay: import myclass
-                           Okay: import foo.bar.yourclass
-                           """
-
-    code = "E401"
-    short_description = "multiple imports on one line"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = ImportsOnSeparateLines()
-        >>> checker.error_offset(LogicalLine('import os\nimport sys'))
-        >>> checker.error_offset(LogicalLine('import sys, os'))
-        10
-        >>> checker.error_offset(LogicalLine('from subprocess import Popen, PIPE'))
-        >>> checker.error_offset(LogicalLine('from myclas import MyClass'))
-        >>> checker.error_offset(LogicalLine('from foo.bar.yourclass import YourClass'))
-        >>> checker.error_offset(LogicalLine('import myclass'))
-        >>> checker.error_offset(LogicalLine('import foo.bar.yourclass'))
+        >>> checker.find_error(LogicalLine('import os\nimport sys'))
+        >>> checker.find_error(LogicalLine('import sys, os'))
+        E401: 10
+        >>> checker.find_error(LogicalLine('from subprocess import Popen, PIPE'))
+        >>> checker.find_error(LogicalLine('from myclas import MyClass'))
+        >>> checker.find_error(LogicalLine('from foo.bar.yourclass import YourClass'))
+        >>> checker.find_error(LogicalLine('import myclass'))
+        >>> checker.find_error(LogicalLine('import foo.bar.yourclass'))
         """
         if line.logical_line.startswith('import '):
             found = line.logical_line.find(',')
             if found > -1:
-                return found
+                return MultipleImportsOnOneLineError(found)
 
 
-class CompoundStatementSemicolon(object):
-    """
+class CompoundStatement(object):
+    r"""
     Compound statements (multiple statements on the same line) are
     generally discouraged.
     
     While sometimes it's okay to put an if/for/while with a small body
     on the same line, never do this for multi-clause statements. Also
     avoid folding such long lines!
+
+    Okay: if foo == 'blah':\n    do_blah_thing()
+    Okay: do_one()
+    Okay: do_two()
+    Okay: do_three()
+
+    E701: if foo == 'blah': do_blah_thing()
+    E701: for x in lst: total += x
+    E701: while t < 10: t = delay()
+    E701: if foo == 'blah': do_blah_thing()
+    E701: else: do_non_blah_thing()
+    E701: try: something()
+    E701: finally: cleanup()
+    E701: if foo == 'blah': one(); two(); three()
+    E702: do_one(); do_two(); do_three()
     """
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = r"""
-                           Okay: do_one()
-                           Okay: do_two()
-                           Okay: do_three()
-
-                           E702: do_one(); do_two(); do_three()
-                           """
-
-    code = "E702"
-    short_description = "multiple statements on one line (colon)"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
-        >>> checker = CompoundStatementSemicolon()
-        >>> checker.error_offset(LogicalLine('do_one(); do_two(); do_three()'))
-        8
-        """
-        found = line.logical_line.find(';')
-        if -1 < found:
-            return found
-
-
-class CompoundStatementColon(CompoundStatementSemicolon):
-
-    original_test_cases = r"""
-                           Okay: if foo == 'blah':\n    do_blah_thing()
-
-                           E701: if foo == 'blah': do_blah_thing()
-                           E701: for x in lst: total += x
-                           E701: while t < 10: t = delay()
-                           E701: if foo == 'blah': do_blah_thing()
-                           E701: else: do_non_blah_thing()
-                           E701: try: something()
-                           E701: finally: cleanup()
-                           E701: if foo == 'blah': one(); two(); three()
-                           """
-
-    code = "E701"
-    short_description = "multiple statements on one line (colon)"
-
-    def error_offset(self, line, document=None):
-        r"""
-        >>> checker = CompoundStatementColon()
-        >>> checker.error_offset(LogicalLine('if foo == "blah": do_blah_thing()'))
-        16
-        >>> checker.error_offset(LogicalLine('while t < 10: t = delay()'))
-        12
-        >>> checker.error_offset(LogicalLine('if foo == "blah": do_blah_thing()'))
-        16
-        >>> checker.error_offset(LogicalLine('else: do_non_blah_thing()'))
-        4
-        >>> checker.error_offset(LogicalLine('try: something()'))
-        3
-        >>> checker.error_offset(LogicalLine('finally: cleanup()'))
-        7
-        >>> checker.error_offset(LogicalLine('if foo == "blah": one(); two(); three()'))
-        16
+        >>> checker = CompoundStatement()
+        >>> checker.find_error(LogicalLine('if foo == "blah": do_blah_thing()'))
+        E701: 16
+        >>> checker.find_error(LogicalLine('while t < 10: t = delay()'))
+        E701: 12
+        >>> checker.find_error(LogicalLine('if foo == "blah": do_blah_thing()'))
+        E701: 16
+        >>> checker.find_error(LogicalLine('else: do_non_blah_thing()'))
+        E701: 4
+        >>> checker.find_error(LogicalLine('try: something()'))
+        E701: 3
+        >>> checker.find_error(LogicalLine('finally: cleanup()'))
+        E701: 7
+        >>> checker.find_error(LogicalLine('if foo == "blah": one(); two(); three()'))
+        E701: 16
+        >>> checker.find_error(LogicalLine('do_one(); do_two(); do_three()'))
+        E702: 8
         """
         found = line.logical_line.find(':')
         if -1 < found < len(line.logical_line) - 1:
@@ -1075,7 +991,10 @@ class CompoundStatementColon(CompoundStatementSemicolon):
             if (before.count('{') <= before.count('}') and  # {'a': 1} (dict)
                 before.count('[') <= before.count(']') and  # [1:2] (slice)
                 not re.search(r'\blambda\b', before)):      # lambda x: x
-                return found
+                return CompoundStatementWithColonError(found)
+        found = line.logical_line.find(';')
+        if -1 < found:
+            return CompoundStatementWithSemicolonError(found)
 
 
 class Python3000HasKey(object):
@@ -1089,21 +1008,16 @@ class Python3000HasKey(object):
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = ""
-
-    code = "W601"
-    short_description = ".has_key() is deprecated, use 'in'"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = Python3000HasKey()
-        >>> checker.error_offset(LogicalLine('{"A": 3}.has_key("A")'))
-        8
-        >>> checker.error_offset(LogicalLine('"A" in {"A": 3}'))
+        >>> checker.find_error(LogicalLine('{"A": 3}.has_key("A")'))
+        W601: 8
+        >>> checker.find_error(LogicalLine('"A" in {"A": 3}'))
         """
         pos = line.logical_line.find('.has_key(')
         if pos > -1:
-            return pos
+            return HasKeyError(pos)
 
 
 class Python3000RaiseComma(object):
@@ -1119,23 +1033,18 @@ class Python3000RaiseComma(object):
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = ""
-
-    code = "W602"
-    short_description = "deprecated form of raising exception"
-
     RAISE_COMMA_REGEX = re.compile(r'raise\s+\w+\s*(,)')
 
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = Python3000RaiseComma()
-        >>> checker.error_offset(LogicalLine('raise ValueError, "message"'))
-        16
-        >>> checker.error_offset(LogicalLine('raise ValueError("message")'))
+        >>> checker.find_error(LogicalLine('raise ValueError, "message"'))
+        W602: 16
+        >>> checker.find_error(LogicalLine('raise ValueError("message")'))
         """
         match = self.RAISE_COMMA_REGEX.match(line.logical_line)
         if match:
-            return match.start(1)
+            return ExceptionWithCommaError(match.start(1))
 
 
 class Python3000NotEqual(object):
@@ -1147,23 +1056,18 @@ class Python3000NotEqual(object):
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = ""
-
-    code = "W603"
-    short_description = "'<>' is deprecated, use '!='"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = Python3000NotEqual()
-        >>> checker.error_offset(LogicalLine('a <> b'))
-        2
-        >>> checker.error_offset(LogicalLine('a != b'))
-        >>> checker.error_offset(LogicalLine('a > b'))
-        >>> checker.error_offset(LogicalLine('a < b'))
+        >>> checker.find_error(LogicalLine('a <> b'))
+        W603: 2
+        >>> checker.find_error(LogicalLine('a != b'))
+        >>> checker.find_error(LogicalLine('a > b'))
+        >>> checker.find_error(LogicalLine('a < b'))
         """
         pos = line.logical_line.find('<>')
         if pos > -1:
-            return pos
+            return DeprecatedNotEqualsError(pos)
 
 class Python3000Backticks(object):
     """
@@ -1173,21 +1077,16 @@ class Python3000Backticks(object):
 
     __metaclass__ = LogicalLineChecker
 
-    original_test_cases = ""
-
-    code = "W604"
-    short_description = "backticks are deprecated, use 'repr()'"
-
-    def error_offset(self, line, document=None):
+    def find_error(self, line, document=None):
         r"""
         >>> checker = Python3000Backticks()
-        >>> checker.error_offset(LogicalLine('print `{}`'))
-        6
-        >>> checker.error_offset(LogicalLine('print repr({})'))
+        >>> checker.find_error(LogicalLine('print `{}`'))
+        W604: 6
+        >>> checker.find_error(LogicalLine('print repr({})'))
         """
         pos = line.logical_line.find('`')
         if pos > -1:
-            return pos
+            return DeprecatedBackticksError(pos)
 
 
 ##############################################################################
@@ -1389,20 +1288,14 @@ class Checker(object):
         """
         Run all physical checks on a raw input line.
         """
-        handled_error_classes = set()
+        line_number = self.line_number
         for cls in PHYSICAL_LINE_CHECKERS:
-
-            if cls in handled_error_classes:
-                # a subclass of this error has alreay been reported; don't re-report
-                continue
-
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = PhysicalLine(line, line_number=self.line_number)
-            error_offset = instance.error_offset(line=line_obj, document=self.document)
-            if error_offset is not None:
-                handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
-                self.report_error(self.line_number, error_offset, cls.description, cls.__name__)
+            line_obj = PhysicalLine(line, line_number=line_number)
+            error = instance.find_error(line=line_obj, document=self.document)
+            if error is not None:
+                self.report_error(line_number, error.column, error.description, cls)
 
     def build_tokens_line(self):
         """
@@ -1468,31 +1361,24 @@ class Checker(object):
                 self.report_error(original_number, original_offset,
                                   text, check)
 
-        handled_error_classes = set()
         for cls in LOGICAL_LINE_CHECKERS:
-
-            if cls in handled_error_classes:
-                # a subclass of this error has alreay been reported; don't re-report
-                continue
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
             line_obj = LogicalLine(self.logical_line, tokens=self.tokens)
-            error_offset = instance.error_offset(line=line_obj, document=self.document)
-            if error_offset is not None:
-                handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
+            error = instance.find_error(line=line_obj, document=self.document)
+            if error is not None:
 
-                if isinstance(error_offset, tuple):
-                    original_number, original_offset = error_offset
+                if isinstance(error.column, tuple):
+                    original_number, original_offset = error.column
                 else:
                     for token_offset, token in self.mapping:
-                        if error_offset >= token_offset:
+                        if error.column >= token_offset:
                             original_number = token[2][0]
                             original_offset = (token[2][1]
-                                               + error_offset - token_offset)
+                                               + error.column - token_offset)
 
-                self.report_error(original_number, original_offset, cls.description, cls.__name__)
-
+                self.report_error(original_number, original_offset, error.description, cls)
 
         self.previous_logical = self.logical_line
 
