@@ -1522,7 +1522,7 @@ class Checker(object):
             if error is not None:
                 self.report_error(line_number, error.column or 0, error.description, cls)
 
-    def build_tokens_line(self):
+    def build_tokens_line(self, tokens, lines):
         """
         Build a logical line from tokens.
         """
@@ -1530,7 +1530,7 @@ class Checker(object):
         logical = []
         length = 0
         previous = None
-        for token in self.tokens:
+        for token in tokens:
             token_type, text = token[0:2]
             if token_type in SKIP_TOKENS:
                 continue
@@ -1540,13 +1540,13 @@ class Checker(object):
                 end_line, end = previous[3]
                 start_line, start = token[2]
                 if end_line != start_line:  # different row
-                    prev_text = self.lines[end_line - 1][end - 1]
+                    prev_text = lines[end_line - 1][end - 1]
                     if prev_text == ',' or (prev_text not in '{[('
                                             and text not in '}])'):
                         logical.append(' ')
                         length += 1
                 elif end != start:  # different column
-                    fill = self.lines[end_line - 1][end:start]
+                    fill = lines[end_line - 1][end:start]
                     logical.append(fill)
                     length += len(fill)
             mapping.append((length, token))
@@ -1558,21 +1558,19 @@ class Checker(object):
         assert logical_line.rstrip() == logical_line
         return logical_line, mapping
 
-    def check_logical(self):
+    def check_logical(self, tokens, blank_lines, blank_lines_before_comment):
         """
         Build a line from tokens and run all logical checks on it.
         """
         options.counters['logical lines'] += 1
-        logical_line, mapping = self.build_tokens_line()
+        logical_line, mapping = self.build_tokens_line(tokens, self.lines)
         first_line = self.lines[mapping[0][1][2][0] - 1]
         indent = first_line[:mapping[0][1][2][1]]
-        self.previous_indent_level = self.indent_level
-        self.indent_level = indentation_level(indent)
 
         line_obj = LogicalLine(indent + logical_line,
-                               tokens=self.tokens,
-                               blank_lines=self.blank_lines,
-                               blank_lines_before_comment=self.blank_lines_before_comment,
+                               tokens=tokens,
+                               blank_lines=blank_lines,
+                               blank_lines_before_comment=blank_lines_before_comment,
                                line_number=self.line_number)
 
         for cls in LOGICAL_LINE_CHECKERS:
@@ -1605,10 +1603,9 @@ class Checker(object):
         self.line_offset = line_offset
         self.line_number = 0
         self.file_errors = 0
-        self.indent_level = 0
-        self.blank_lines = 0
-        self.blank_lines_before_comment = 0
-        self.tokens = []
+        blank_lines = 0
+        blank_lines_before_comment = 0
+        tokens = []
         parens = 0
         for token in tokenize.generate_tokens(self.readline_check_physical):
             if options.verbose >= 3:
@@ -1618,34 +1615,34 @@ class Checker(object):
                     pos = 'l.%s' % token[3][0]
                 print('l.%s\t%s\t%s\t%r' %
                     (token[2][0], pos, tokenize.tok_name[token[0]], token[1]))
-            self.tokens.append(token)
+            tokens.append(token)
             token_type, text = token[0:2]
             if token_type == tokenize.OP and text in '([{':
                 parens += 1
             if token_type == tokenize.OP and text in '}])':
                 parens -= 1
             if token_type == tokenize.NEWLINE and not parens:
-                self.check_logical()
-                self.blank_lines = 0
-                self.blank_lines_before_comment = 0
-                self.tokens = []
+                self.check_logical(tokens, blank_lines, blank_lines_before_comment)
+                blank_lines = 0
+                blank_lines_before_comment = 0
+                tokens = []
             if token_type == tokenize.NL and not parens:
-                if len(self.tokens) <= 1:
+                if len(tokens) <= 1:
                     # The physical line contains only this token.
-                    self.blank_lines += 1
-                self.tokens = []
+                    blank_lines += 1
+                tokens = []
             if token_type == tokenize.COMMENT:
                 source_line = token[4]
                 token_start = token[2][1]
                 if source_line[:token_start].strip() == '':
-                    self.blank_lines_before_comment = max(self.blank_lines,
-                        self.blank_lines_before_comment)
-                    self.blank_lines = 0
+                    blank_lines_before_comment = max(blank_lines,
+                        blank_lines_before_comment)
+                    blank_lines = 0
                 if text.endswith('\n') and not parens:
                     # The comment also ends a physical line. This works around
                     # Python < 2.6 behaviour, which does not generate NL after
                     # a comment which is on a line by itself.
-                    self.tokens = []
+                    tokens = []
         return self.file_errors
 
     def report_error(self, line_number, offset, text, check):
