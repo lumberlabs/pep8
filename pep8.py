@@ -207,9 +207,18 @@ class PhysicalLine(object):
 
 class LogicalLine(object):
 
-    def __init__(self, logical_line):
+    def __init__(self, logical_line, tokens=None, autotokenize=None):
         self.logical_line = logical_line
+        self.tokens = tokens
 
+        if autotokenize:
+            line_iterator = logical_line.splitlines(True).__iter__()
+            def local_readline():
+                try:
+                    return line_iterator.next()
+                except StopIteration:
+                    return ""
+            self.tokens = tokenize.generate_tokens(local_readline)
 
 class Document(object):
 
@@ -846,20 +855,7 @@ def whitespace_around_named_parameter_equals(logical_line):
             parens -= 1
 
 
-def whitespace_before_inline_comment(logical_line, tokens):
-    """
-    Separate inline comments by at least two spaces.
-
-    An inline comment is a comment on the same line as a statement. Inline
-    comments should be separated by at least two spaces from the statement.
-    They should start with a # and a single space.
-
-    Okay: x = x + 1  # Increment x
-    Okay: x = x + 1    # Increment x
-    E261: x = x + 1 # Increment x
-    E262: x = x + 1  #Increment x
-    E262: x = x + 1  #  Increment x
-    """
+def extract_comments(tokens):
     prev_end = (0, 0)
     for token_type, text, start, end, line in tokens:
         if token_type == tokenize.NL:
@@ -867,14 +863,79 @@ def whitespace_before_inline_comment(logical_line, tokens):
         if token_type == tokenize.COMMENT:
             if not line[:start[1]].strip():
                 continue
-            if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
-                return (prev_end,
-                        "E261 at least two spaces before inline comment")
-            if (len(text) > 1 and text.startswith('#  ')
-                           or not text.startswith('# ')):
-                return start, "E262 inline comment should start with '# '"
+            yield text, start, prev_end
         else:
             prev_end = end
+
+
+class WhitespaceAfterInlineComment(object):
+    __metaclass__ = LogicalLineChecker
+
+    pep8 = """
+           Separate inline comments by at least two spaces.
+
+           An inline comment is a comment on the same line as a statement. Inline
+           comments should be separated by at least two spaces from the statement.
+           They should start with a # and a single space.
+           """
+
+    original_test_cases = """
+                          Okay: x = x + 1  # Increment x
+                          Okay: x = x + 1    # Increment x
+                          E262: x = x + 1  #Increment x
+                          E262: x = x + 1  #  Increment x
+                          """
+
+    code = "E262"
+    short_description = "inline comment should start with '# '"
+
+    def error_offset(self, line, document=None):
+        """
+        >>> checker = WhitespaceAfterInlineComment()
+        >>> checker.error_offset(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
+        >>> checker.error_offset(LogicalLine('x = x + 1    # Increment x', autotokenize=True))
+        >>> checker.error_offset(LogicalLine('x = x + 1  #Increment x', autotokenize=True))
+        (1, 11)
+        >>> checker.error_offset(LogicalLine('x = x + 1  #  Increment x', autotokenize=True))
+        (1, 11)
+        """
+        for text, start, prev_end in extract_comments(line.tokens):
+            if (len(text) > 1 and text.startswith('#  ')
+                           or not text.startswith('# ')):
+                return start
+
+
+class WhitespaceBeforeInlineComment(object):
+    __metaclass__ = LogicalLineChecker
+
+    pep8 = """
+           Separate inline comments by at least two spaces.
+
+           An inline comment is a comment on the same line as a statement. Inline
+           comments should be separated by at least two spaces from the statement.
+           They should start with a # and a single space.
+           """
+
+    original_test_cases = """
+                          Okay: x = x + 1  # Increment x
+                          Okay: x = x + 1    # Increment x
+                          E261: x = x + 1 # Increment x
+                          """
+
+    code = "E261"
+    short_description = "at least two spaces before inline comment"
+
+    def error_offset(self, line, document=None):
+        """
+        >>> checker = WhitespaceBeforeInlineComment()
+        >>> checker.error_offset(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
+        >>> checker.error_offset(LogicalLine('x = x + 1    # Increment x', autotokenize=True))
+        >>> checker.error_offset(LogicalLine('x = x + 1 # Increment x', autotokenize=True))
+        (1, 9)
+        """
+        for text, start, prev_end in extract_comments(line.tokens):
+            if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
+                return prev_end
 
 
 class ImportsOnSeparateLines(object):
@@ -1394,7 +1455,7 @@ class Checker(object):
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = LogicalLine(self.logical_line)
+            line_obj = LogicalLine(self.logical_line, tokens=self.tokens)
             error_offset = instance.error_offset(line=line_obj, document=self.document)
             if error_offset is not None:
                 handled_error_classes.update(cls.__bases__)  # add all superclasses to avoid double-reporting
