@@ -94,13 +94,13 @@ for space.
 
 __version__ = '0.5.1dev'
 
-import os
-import sys
-import re
-import textwrap
-import time
 import inspect
 import keyword
+import os
+import re
+import sys
+import textwrap
+import time
 import tokenize
 from optparse import OptionParser
 from fnmatch import fnmatch
