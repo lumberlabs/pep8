@@ -1239,20 +1239,20 @@ else:
         return open(filename, encoding='latin-1').readlines()
 
 
-def expand_indent(line):
+def indentation_level(line):
     """
     Return the amount of indentation.
     Tabs are expanded to the next multiple of 8.
 
-    >>> expand_indent('    ')
+    >>> indentation_level('    ')
     4
-    >>> expand_indent('\\t')
+    >>> indentation_level('\\t')
     8
-    >>> expand_indent('    \\t')
+    >>> indentation_level('    \\t')
     8
-    >>> expand_indent('       \\t')
+    >>> indentation_level('       \\t')
     8
-    >>> expand_indent('        \\t')
+    >>> indentation_level('        \\t')
     16
     """
     result = 0
@@ -1474,7 +1474,7 @@ class Checker(object):
         first_line = self.lines[self.mapping[0][1][2][0] - 1]
         indent = first_line[:self.mapping[0][1][2][1]]
         self.previous_indent_level = self.indent_level
-        self.indent_level = expand_indent(indent)
+        self.indent_level = indentation_level(indent)
         if options.verbose >= 2:
             print(self.logical_line[:80].rstrip())
         for name, check, argument_names in options.logical_checks:
