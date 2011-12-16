@@ -1556,7 +1556,7 @@ class Checker(object):
         """
         Build a logical line from tokens.
         """
-        self.mapping = []
+        mapping = []
         logical = []
         length = 0
         previous = None
@@ -1579,26 +1579,27 @@ class Checker(object):
                     fill = self.lines[end_line - 1][end:start]
                     logical.append(fill)
                     length += len(fill)
-            self.mapping.append((length, token))
+            mapping.append((length, token))
             logical.append(text)
             length += len(text)
             previous = token
-        self.logical_line = ''.join(logical)
-        assert self.logical_line.lstrip() == self.logical_line
-        assert self.logical_line.rstrip() == self.logical_line
+        logical_line = ''.join(logical)
+        assert logical_line.lstrip() == logical_line
+        assert logical_line.rstrip() == logical_line
+        return logical_line, mapping
 
     def check_logical(self):
         """
         Build a line from tokens and run all logical checks on it.
         """
         options.counters['logical lines'] += 1
-        self.build_tokens_line()
-        first_line = self.lines[self.mapping[0][1][2][0] - 1]
-        indent = first_line[:self.mapping[0][1][2][1]]
+        logical_line, mapping = self.build_tokens_line()
+        first_line = self.lines[mapping[0][1][2][0] - 1]
+        indent = first_line[:mapping[0][1][2][1]]
         self.previous_indent_level = self.indent_level
         self.indent_level = indentation_level(indent)
 
-        line_obj = LogicalLine(indent + self.logical_line,
+        line_obj = LogicalLine(indent + logical_line,
                                tokens=self.tokens,
                                blank_lines=self.blank_lines,
                                blank_lines_before_comment=self.blank_lines_before_comment,
@@ -1615,7 +1616,7 @@ class Checker(object):
                 if isinstance(error_column, tuple):
                     original_number, original_offset = error_column
                 else:
-                    for token_offset, token in self.mapping:
+                    for token_offset, token in mapping:
                         if error_column >= token_offset:
                             original_number = token[2][0]
                             original_offset = (token[2][1]
