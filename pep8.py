@@ -153,12 +153,12 @@ class LineChecker(type):
 
     def __new__(metacls, name, bases, dictionary):
         # validation
-        for required_attr in ("pep8", "code", "short_description", "error_offset"):
+        for required_attr in ("code", "short_description", "error_offset"):
             if required_attr not in dictionary and not any(hasattr(base, required_attr) for base in bases):
                 raise TypeError("Class %s must have a %s attribute defined" % (name, required_attr))
 
         # cleanup
-        for dedent_field in ("pep8", "original_test_cases"):
+        for dedent_field in ("original_test_cases", ):
             if dedent_field not in dictionary:
                 # must be in a superclass
                 for base in bases:
@@ -231,18 +231,18 @@ class Document(object):
 
 
 class TabsOrSpaces(object):
+    r"""
+    Never mix tabs and spaces.
+
+    The most popular way of indenting Python is with spaces only. The
+    second-most popular way is with tabs only. Code indented with a mixture
+    of tabs and spaces should be converted to using spaces exclusively. When
+    invoking the Python command line interpreter with the -t option, it issues
+    warnings about code that illegally mixes tabs and spaces. When using -tt
+    these warnings become errors. These options are highly recommended!
+    """
+
     __metaclass__ = PhysicalLineChecker
-
-    pep8 = r"""
-           Never mix tabs and spaces.
-
-           The most popular way of indenting Python is with spaces only. The
-           second-most popular way is with tabs only. Code indented with a mixture
-           of tabs and spaces should be converted to using spaces exclusively. When
-           invoking the Python command line interpreter with the -t option, it issues
-           warnings about code that illegally mixes tabs and spaces. When using -tt
-           these warnings become errors. These options are highly recommended!
-           """
 
     original_test_cases = r"""
                            Okay: if a == 0:\n        a = 1\n        b = 1
@@ -278,12 +278,12 @@ class TabsOrSpaces(object):
 
 
 class TabsObsolete(object):
-    __metaclass__ = PhysicalLineChecker
+    r"""
+    For new projects, spaces-only are strongly recommended over tabs. Most
+    editors have features that make this easy to do.
+    """
 
-    pep8 = r"""
-            For new projects, spaces-only are strongly recommended over tabs. Most
-            editors have features that make this easy to do.
-            """
+    __metaclass__ = PhysicalLineChecker
 
     original_test_cases = r"""
                            Okay: if True:\n    return
@@ -342,22 +342,22 @@ def rstrip_newlines(s):
 
 
 class TrailingWhitespace(object):
+    r"""
+    JCR: Trailing whitespace is superfluous.
+    FBM: Except when it occurs as part of a blank line (i.e. the line is
+         nothing but whitespace). According to Python docs[1] a line with only
+         whitespace is considered a blank line, and is to be ignored. However,
+         matching a blank line to its indentation level avoids mistakenly
+         terminating a multi-line statement (e.g. class declaration) when
+         pasting code into the standard Python interpreter.
+
+         [1] http://docs.python.org/reference/lexical_analysis.html#blank-lines
+
+    The warning returned varies on whether the line itself is blank, for easier
+    filtering for those who want to indent their blank lines.
+    """
+
     __metaclass__ = PhysicalLineChecker
-
-    pep8 = r"""
-            JCR: Trailing whitespace is superfluous.
-            FBM: Except when it occurs as part of a blank line (i.e. the line is
-                 nothing but whitespace). According to Python docs[1] a line with only
-                 whitespace is considered a blank line, and is to be ignored. However,
-                 matching a blank line to its indentation level avoids mistakenly
-                 terminating a multi-line statement (e.g. class declaration) when
-                 pasting code into the standard Python interpreter.
-
-                 [1] http://docs.python.org/reference/lexical_analysis.html#blank-lines
-
-            The warning returned varies on whether the line itself is blank, for easier
-            filtering for those who want to indent their blank lines.
-            """
 
     original_test_cases = r"""
                            Okay: spam(1)
@@ -424,11 +424,11 @@ class LineOfWhiteSpace(TrailingWhitespace):
 
 
 class TrailingBlankLines(object):
-    __metaclass__ = PhysicalLineChecker
+    r"""
+    JCR: Trailing blank lines are superfluous.
+    """
 
-    pep8 = r"""
-            JCR: Trailing blank lines are superfluous.
-            """
+    __metaclass__ = PhysicalLineChecker
 
     original_test_cases = r"""
                            Okay: spam(1)
@@ -452,11 +452,11 @@ class TrailingBlankLines(object):
 
 
 class MissingNewline(object):
-    __metaclass__ = PhysicalLineChecker
+    r"""
+    JCR: The last line should have a newline.
+    """
 
-    pep8 = r"""
-            JCR: The last line should have a newline.
-            """
+    __metaclass__ = PhysicalLineChecker
 
     original_test_cases = ""
 
@@ -478,20 +478,21 @@ class MissingNewline(object):
 
 
 class MaximumLineLength(object):
-    __metaclass__ = PhysicalLineChecker
+    r"""
+    Limit all lines to a maximum of 79 characters.
+    
+    There are still many devices around that are limited to 80 character
+    lines; plus, limiting windows to 80 characters makes it possible to have
+    several windows side-by-side. The default wrapping on such devices looks
+    ugly. Therefore, please limit all lines to a maximum of 79 characters.
+    For flowing long blocks of text (docstrings or comments), limiting the
+    length to 72 characters is recommended.
+    """
 
     # TODO: Implement a check for the recommended line length limits
     # for "flowing long blocks of text".
-    pep8 = r"""
-            Limit all lines to a maximum of 79 characters.
 
-            There are still many devices around that are limited to 80 character
-            lines; plus, limiting windows to 80 characters makes it possible to have
-            several windows side-by-side. The default wrapping on such devices looks
-            ugly. Therefore, please limit all lines to a maximum of 79 characters.
-            For flowing long blocks of text (docstrings or comments), limiting the
-            length to 72 characters is recommended.
-            """
+    __metaclass__ = PhysicalLineChecker
 
     original_test_cases = ""
 
@@ -826,12 +827,12 @@ def whitespace_around_comma(logical_line):
 
 
 class WhitespaceAroundNamedParameterEquals(object):
-    __metaclass__ = LogicalLineChecker
+    """
+    Don't use spaces around the '=' sign when used to indicate a
+    keyword argument or a default parameter value.
+    """
 
-    pep8 = """
-           Don't use spaces around the '=' sign when used to indicate a
-           keyword argument or a default parameter value.
-           """
+    __metaclass__ = LogicalLineChecker
 
     original_test_cases = """
                           Okay: def complex(real, imag=0.0):
@@ -890,15 +891,15 @@ def extract_comments(tokens):
 
 
 class WhitespaceAfterInlineComment(object):
+    """
+    Separate inline comments by at least two spaces.
+    
+    An inline comment is a comment on the same line as a statement. Inline
+    comments should be separated by at least two spaces from the statement.
+    They should start with a # and a single space.
+    """
+
     __metaclass__ = LogicalLineChecker
-
-    pep8 = """
-           Separate inline comments by at least two spaces.
-
-           An inline comment is a comment on the same line as a statement. Inline
-           comments should be separated by at least two spaces from the statement.
-           They should start with a # and a single space.
-           """
 
     original_test_cases = """
                           Okay: x = x + 1  # Increment x
@@ -927,15 +928,15 @@ class WhitespaceAfterInlineComment(object):
 
 
 class WhitespaceBeforeInlineComment(object):
+    """
+    Separate inline comments by at least two spaces.
+    
+    An inline comment is a comment on the same line as a statement. Inline
+    comments should be separated by at least two spaces from the statement.
+    They should start with a # and a single space.
+    """
+
     __metaclass__ = LogicalLineChecker
-
-    pep8 = """
-           Separate inline comments by at least two spaces.
-
-           An inline comment is a comment on the same line as a statement. Inline
-           comments should be separated by at least two spaces from the statement.
-           They should start with a # and a single space.
-           """
 
     original_test_cases = """
                           Okay: x = x + 1  # Increment x
@@ -960,11 +961,11 @@ class WhitespaceBeforeInlineComment(object):
 
 
 class ImportsOnSeparateLines(object):
-    __metaclass__ = LogicalLineChecker
+    """
+    Imports should usually be on separate lines.
+    """
 
-    pep8 = r"""
-            Imports should usually be on separate lines.
-            """
+    __metaclass__ = LogicalLineChecker
 
     original_test_cases = r"""
                            Okay: import os\nimport sys
@@ -999,16 +1000,16 @@ class ImportsOnSeparateLines(object):
 
 
 class CompoundStatementSemicolon(object):
+    """
+    Compound statements (multiple statements on the same line) are
+    generally discouraged.
+    
+    While sometimes it's okay to put an if/for/while with a small body
+    on the same line, never do this for multi-clause statements. Also
+    avoid folding such long lines!
+    """
+
     __metaclass__ = LogicalLineChecker
-
-    pep8 = r"""
-            Compound statements (multiple statements on the same line) are
-            generally discouraged.
-
-            While sometimes it's okay to put an if/for/while with a small body
-            on the same line, never do this for multi-clause statements. Also
-            avoid folding such long lines!
-            """
 
     original_test_cases = r"""
                            Okay: do_one()
@@ -1078,15 +1079,15 @@ class CompoundStatementColon(CompoundStatementSemicolon):
 
 
 class Python3000HasKey(object):
-    __metaclass__ = LogicalLineChecker
+    """
+    The {}.has_key() method will be removed in the future version of
+    Python. Use the 'in' operation instead, like:
+    d = {"a": 1, "b": 2}
+    if "b" in d:
+        print d["b"]
+    """
 
-    pep8 = r"""
-            The {}.has_key() method will be removed in the future version of
-            Python. Use the 'in' operation instead, like:
-            d = {"a": 1, "b": 2}
-            if "b" in d:
-                print d["b"]
-            """
+    __metaclass__ = LogicalLineChecker
 
     original_test_cases = ""
 
@@ -1106,17 +1107,17 @@ class Python3000HasKey(object):
 
 
 class Python3000RaiseComma(object):
+    """
+    When raising an exception, use "raise ValueError('message')"
+    instead of the older form "raise ValueError, 'message'".
+    
+    The paren-using form is preferred because when the exception arguments
+    are long or include string formatting, you don't need to use line
+    continuation characters thanks to the containing parentheses. The older
+    form will be removed in Python 3000.
+    """
+
     __metaclass__ = LogicalLineChecker
-
-    pep8 = r"""
-            When raising an exception, use "raise ValueError('message')"
-            instead of the older form "raise ValueError, 'message'".
-
-            The paren-using form is preferred because when the exception arguments
-            are long or include string formatting, you don't need to use line
-            continuation characters thanks to the containing parentheses. The older
-            form will be removed in Python 3000.
-            """
 
     original_test_cases = ""
 
@@ -1138,13 +1139,13 @@ class Python3000RaiseComma(object):
 
 
 class Python3000NotEqual(object):
-    __metaclass__ = LogicalLineChecker
+    """
+    != can also be written <>, but this is an obsolete usage kept for
+    backwards compatibility only. New code should always use !=.
+    The older syntax is removed in Python 3000.
+    """
 
-    pep8 = r"""
-            != can also be written <>, but this is an obsolete usage kept for
-            backwards compatibility only. New code should always use !=.
-            The older syntax is removed in Python 3000.
-            """
+    __metaclass__ = LogicalLineChecker
 
     original_test_cases = ""
 
@@ -1165,12 +1166,12 @@ class Python3000NotEqual(object):
             return pos
 
 class Python3000Backticks(object):
-    __metaclass__ = LogicalLineChecker
+    """
+    Backticks are removed in Python 3000.
+    Use repr() instead.
+    """
 
-    pep8 = r"""
-            Backticks are removed in Python 3000.
-            Use repr() instead.
-            """
+    __metaclass__ = LogicalLineChecker
 
     original_test_cases = ""
 
