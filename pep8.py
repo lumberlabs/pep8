@@ -726,7 +726,7 @@ class WhitespaceBeforeParameters(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = WhitespaceBeforeParameters()
         >>> checker.find_error(LogicalLine('spam(1)', autotokenize=True))
@@ -776,7 +776,7 @@ class WhitespaceAroundOperator(object):
 
     WHITESPACE_AROUND_OPERATOR_REGEX = re.compile('([^\w\s]*)\s*(\t|  )\s*([^\w\s]*)')
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = WhitespaceAroundOperator()
         >>> checker.find_error(LogicalLine('a = 12 + 3'))
@@ -832,7 +832,7 @@ class MissingWhitespaceAroundOperator(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = MissingWhitespaceAroundOperator()
         >>> checker.find_error(LogicalLine('i = i + 1', autotokenize=True))
@@ -925,7 +925,7 @@ class WhitespaceAroundComma(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = WhitespaceAroundComma()
         >>> checker.find_error(LogicalLine('a = (1, 2)'))
@@ -937,7 +937,6 @@ class WhitespaceAroundComma(object):
         for separator in ',;:':
             found = line.logical_line.find(separator + '  ')
             if found > -1:
-                
                 return MultipleSpacesAfterSeparatorError(found + 1, separator)
             found = line.logical_line.find(separator + '\t')
             if found > -1:
@@ -964,7 +963,7 @@ class WhitespaceAroundNamedParameterEquals(object):
 
     WHITESPACE_AROUND_NAMED_PARAMETER_REGEX = re.compile(r'[()]|\s=[^=]|[^=!<>]=\s')
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         """
         >>> checker = WhitespaceAroundNamedParameterEquals()
         >>> checker.find_error(LogicalLine('def complex(real, imag=0.0):'))
@@ -1007,7 +1006,7 @@ class WhitespaceAroundInlineComment(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         """
         >>> checker = WhitespaceAroundInlineComment()
         >>> checker.find_error(LogicalLine('x = x + 1  # Increment x', autotokenize=True))
@@ -1053,7 +1052,7 @@ class ImportsOnSeparateLines(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = ImportsOnSeparateLines()
         >>> checker.find_error(LogicalLine('import os\nimport sys'))
@@ -1098,7 +1097,7 @@ class CompoundStatement(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = CompoundStatement()
         >>> checker.find_error(LogicalLine('if foo == "blah": do_blah_thing()'))
@@ -1141,7 +1140,7 @@ class Python3000HasKey(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = Python3000HasKey()
         >>> checker.find_error(LogicalLine('{"A": 3}.has_key("A")'))
@@ -1168,7 +1167,7 @@ class Python3000RaiseComma(object):
 
     RAISE_COMMA_REGEX = re.compile(r'raise\s+\w+\s*(,)')
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = Python3000RaiseComma()
         >>> checker.find_error(LogicalLine('raise ValueError, "message"'))
@@ -1189,7 +1188,7 @@ class Python3000NotEqual(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = Python3000NotEqual()
         >>> checker.find_error(LogicalLine('a <> b'))
@@ -1202,6 +1201,7 @@ class Python3000NotEqual(object):
         if pos > -1:
             return DeprecatedNotEqualsError(pos)
 
+
 class Python3000Backticks(object):
     """
     Backticks are removed in Python 3000.
@@ -1210,7 +1210,7 @@ class Python3000Backticks(object):
 
     __metaclass__ = LogicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = Python3000Backticks()
         >>> checker.find_error(LogicalLine('print `{}`'))
