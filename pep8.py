@@ -266,6 +266,26 @@ class LineTooLongError(CheckerError):
         return "line too long (%d characters)" % self.line_length
 
 
+class WhitespaceSeparatorError(CheckerError):
+
+    def __init__(self, column, separator):
+        self.column = column
+        self.separator = separator
+
+    @property
+    def text(self):
+        return "%s after '%s'" % (self.space_type, self.separator)
+
+
+class MultipleSpacesAfterSeparatorError(WhitespaceSeparatorError):
+    code = "E241"
+    space_type = "multiple spaces"
+
+
+class TabAfterSeparatorError(WhitespaceSeparatorError):
+    code = "E242"
+    space_type = "tab"
+
 
 ##############################################################################
 # Plugins (checker classes) for physical lines
@@ -787,8 +807,8 @@ def missing_whitespace_around_operator(logical_line, tokens):
         prev_end = end
 
 
-def whitespace_around_comma(logical_line):
-    """
+class WhitespaceAroundComma(object):
+    r"""
     Avoid extraneous whitespace in the following situations:
 
     - More than one space around an assignment (or other) operator to
@@ -801,14 +821,26 @@ def whitespace_around_comma(logical_line):
     E241: a = (1,  2)
     E242: a = (1,\t2)
     """
-    line = logical_line
-    for separator in ',;:':
-        found = line.find(separator + '  ')
-        if found > -1:
-            return found + 1, "E241 multiple spaces after '%s'" % separator
-        found = line.find(separator + '\t')
-        if found > -1:
-            return found + 1, "E242 tab after '%s'" % separator
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, document=None):
+        r"""
+        >>> checker = WhitespaceAroundComma()
+        >>> checker.find_error(LogicalLine('a = (1, 2)'))
+        >>> checker.find_error(LogicalLine('a = (1,  2)'))
+        E241: 7
+        >>> checker.find_error(LogicalLine('a = (1,\t2)'))
+        E242: 7
+        """
+        for separator in ',;:':
+            found = line.logical_line.find(separator + '  ')
+            if found > -1:
+                
+                return MultipleSpacesAfterSeparatorError(found + 1, separator)
+            found = line.logical_line.find(separator + '\t')
+            if found > -1:
+                return TabAfterSeparatorError(found + 1, separator)
 
 
 class WhitespaceAroundNamedParameterEquals(object):
