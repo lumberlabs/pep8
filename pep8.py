@@ -861,6 +861,7 @@ def extract_comments(tokens):
         if token_type == tokenize.NL:
             continue
         if token_type == tokenize.COMMENT:
+            # TODO: What does this if statement do? Write a test for it.
             if not line[:start[1]].strip():
                 continue
             yield text, start, prev_end
