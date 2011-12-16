@@ -1597,24 +1597,6 @@ class Checker(object):
         indent = first_line[:self.mapping[0][1][2][1]]
         self.previous_indent_level = self.indent_level
         self.indent_level = indentation_level(indent)
-        if options.verbose >= 2:
-            print(self.logical_line[:80].rstrip())
-        for name, check, argument_names in options.logical_checks:
-            if options.verbose >= 4:
-                print('   ' + name)
-            result = self.run_check(check, argument_names)
-            if result is not None:
-                offset, text = result
-                if isinstance(offset, tuple):
-                    original_number, original_offset = offset
-                else:
-                    for token_offset, token in self.mapping:
-                        if offset >= token_offset:
-                            original_number = token[2][0]
-                            original_offset = (token[2][1]
-                                               + offset - token_offset)
-                self.report_error(original_number, original_offset,
-                                  text, check)
 
         line_obj = LogicalLine(indent + self.logical_line,
                                tokens=self.tokens,
@@ -1642,8 +1624,6 @@ class Checker(object):
                 self.report_error(original_number, original_offset, error.description, cls)
 
         self.previous_line_obj = line_obj
-        self.previous_logical = self.logical_line
-
 
 
     def check_all(self, expected=None, line_offset=0):
@@ -1655,7 +1635,6 @@ class Checker(object):
         self.line_number = 0
         self.file_errors = 0
         self.indent_level = 0
-        self.previous_logical = ''
         self.blank_lines = 0
         self.blank_lines_before_comment = 0
         self.tokens = []
