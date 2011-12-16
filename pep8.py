@@ -294,8 +294,7 @@ class TabAfterSeparatorError(WhitespaceSeparatorError):
     space_type = "tab"
 
 
-class WhitespaceBeforeParametersError(CheckerError):
-    code = "E211"
+class CheckerErrorWithContext(CheckerError):
 
     def __init__(self, column, context):
         self.column = column
@@ -303,7 +302,12 @@ class WhitespaceBeforeParametersError(CheckerError):
 
     @property
     def text(self):
-        return "whitespace before '%s'" % self.context
+        return self.text_format % self.context
+
+
+class WhitespaceBeforeParametersError(CheckerErrorWithContext):
+    code = "E211"
+    text_format = "whitespace before '%s'"
 
 
 class WhitespaceAroundOperatorError(CheckerError):
@@ -327,6 +331,11 @@ class WhitespaceAroundOperatorError(CheckerError):
     @property
     def text(self):
         return "%s %s operator" % (self.whitespace_description, self.location_description)
+
+
+class MissingWhitespaceAfterSeparatorError(CheckerErrorWithContext):
+    code = "E231"
+    text_format = "E231 missing whitespace after '%s'"
 
 
 ##############################################################################
@@ -662,7 +671,7 @@ def extraneous_whitespace(logical_line):
                 return found, "E203 whitespace before '%s'" % char
 
 
-def missing_whitespace(logical_line):
+class MissingWhitespaceAfterSeparator(object):
     """
     JCR: Each comma, semicolon or colon should be followed by whitespace.
 
@@ -675,16 +684,33 @@ def missing_whitespace(logical_line):
     E231: ['a','b']
     E231: foo(bar,baz)
     """
-    line = logical_line
-    for index in range(len(line) - 1):
-        char = line[index]
-        if char in ',;:' and line[index + 1] not in WHITESPACE:
-            before = line[:index]
-            if char == ':' and before.count('[') > before.count(']'):
-                continue  # Slice syntax, no space required
-            if char == ',' and line[index + 1] == ')':
-                continue  # Allow tuple with only one element: (3,)
-            return index, "E231 missing whitespace after '%s'" % char
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, previous_line=None, document=None):
+        r"""
+        >>> checker = MissingWhitespaceAfterSeparator()
+        >>> checker.find_error(LogicalLine('[a, b]'))
+        >>> checker.find_error(LogicalLine('(3,)'))
+        >>> checker.find_error(LogicalLine('a[1:4]'))
+        >>> checker.find_error(LogicalLine('a[:4]'))
+        >>> checker.find_error(LogicalLine('a[1:]'))
+        >>> checker.find_error(LogicalLine('a[1:4:2]'))
+        >>> checker.find_error(LogicalLine('["a","b"]'))
+        E231: 4
+        >>> checker.find_error(LogicalLine('foo(bar,baz)'))
+        E231: 7
+        """
+        line = line.logical_line
+        for index in range(len(line) - 1):
+            char = line[index]
+            if char in ',;:' and line[index + 1] not in WHITESPACE:
+                before = line[:index]
+                if char == ':' and before.count('[') > before.count(']'):
+                    continue  # Slice syntax, no space required
+                if char == ',' and line[index + 1] == ')':
+                    continue  # Allow tuple with only one element: (3,)
+                return MissingWhitespaceAfterSeparatorError(index, char)
 
 
 class Indentation(object):
