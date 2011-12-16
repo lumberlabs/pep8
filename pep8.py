@@ -187,9 +187,14 @@ class PhysicalLine(object):
 
 class LogicalLine(object):
 
-    def __init__(self, logical_line, tokens=None, autotokenize=None):
+    def __init__(self, logical_line,
+                 tokens=None, autotokenize=None,
+                 blank_lines=None, blank_lines_before_comment=None):
         self.logical_line = logical_line
         self.tokens = tokens
+        self.blank_lines = blank_lines
+        self.blank_lines_before_comment = blank_lines_before_comment
+        self.indent_level = indentation_level(leading_indentation(logical_line))
 
         if autotokenize:
             line_io = StringIO.StringIO(self.logical_line)
@@ -250,6 +255,9 @@ ExceptionWithCommaError = checker_error("W602", "deprecated form of raising exce
 DeprecatedNotEqualsError = checker_error("W603", "'<>' is deprecated, use '!='", "DeprecatedNotEqualsError")
 DeprecatedBackticksError = checker_error("W604", "backticks are deprecated, use 'repr()'", "DeprecatedBackticksError")
 MissingWhitespaceError = checker_error("E225", "missing whitespace around operator", "MissingWhitespaceError")
+IndentationNotMultipleOfFourError = checker_error("E111", "indentation is not a multiple of four", "IndentationNotMultipleOfFourError")
+InsufficientIndentationError = checker_error("E112", "expected an indented block", "InsufficientIndentationError")
+UnexpectedIndentationError = checker_error("E113", "unexpected indentation", "UnexpectedIndentationError")
 
 
 class LineTooLongError(CheckerError):
@@ -679,8 +687,7 @@ def missing_whitespace(logical_line):
             return index, "E231 missing whitespace after '%s'" % char
 
 
-def indentation(logical_line, previous_logical, indent_char,
-                indent_level, previous_indent_level):
+class Indentation(object):
     r"""
     Use 4 spaces per indentation level.
 
@@ -697,13 +704,30 @@ def indentation(logical_line, previous_logical, indent_char,
     Okay: a = 1\nb = 2
     E113: a = 1\n    b = 2
     """
-    if indent_char == ' ' and indent_level % 4:
-        return 0, "E111 indentation is not a multiple of four"
-    indent_expect = previous_logical.endswith(':')
-    if indent_expect and indent_level <= previous_indent_level:
-        return 0, "E112 expected an indented block"
-    if indent_level > previous_indent_level and not indent_expect:
-        return 0, "E113 unexpected indentation"
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, previous_line=None, document=None):
+        r"""
+        >>> checker = Indentation()
+        >>> checker.find_error(LogicalLine('a = 1'), previous_line=LogicalLine(''), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('if a == 0:'), previous_line=LogicalLine('    a = 1'), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('  a = 1'), previous_line=LogicalLine(''), document=Document(indent_char=' '))
+        E111
+        >>> checker.find_error(LogicalLine('    pass'), previous_line=LogicalLine('for item in items:'), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('pass'), previous_line=LogicalLine('for item in items:'), document=Document(indent_char=' '))
+        E112
+        >>> checker.find_error(LogicalLine('b = 2'), previous_line=LogicalLine('a = 1'), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('    b = 2'), previous_line=LogicalLine('a = 1'), document=Document(indent_char=' '))
+        E113
+        """
+        if document.indent_char == ' ' and line.indent_level % 4:
+            return IndentationNotMultipleOfFourError()
+        indent_expect = previous_line.logical_line.endswith(':')
+        if indent_expect and line.indent_level <= previous_line.indent_level:
+            return InsufficientIndentationError()
+        if line.indent_level > previous_line.indent_level and not indent_expect:
+            return UnexpectedIndentationError()
 
 
 class WhitespaceBeforeParameters(object):
@@ -1498,8 +1522,12 @@ class Checker(object):
 
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
-            line_obj = LogicalLine(self.logical_line, tokens=self.tokens)
-            error = instance.find_error(line=line_obj, document=self.document)
+            line_obj = LogicalLine(indent + self.logical_line,
+                                   tokens=self.tokens,
+                                   blank_lines=self.blank_lines,
+                                   blank_lines_before_comment=self.blank_lines_before_comment)
+            previous_line_obj = LogicalLine(self.document.indent_char * self.previous_indent_level + self.previous_logical)
+            error = instance.find_error(line=line_obj, previous_line=previous_line_obj, document=self.document)
             if error is not None:
                 error_column = error.column or 0
 
