@@ -122,8 +122,6 @@ INDENT_REGEX = re.compile(r'([ \t]*)')
 SELFTEST_REGEX = re.compile(r'(Okay|[EW]\d{3}):\s(.*)')
 ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
-WHITESPACE_AROUND_OPERATOR_REGEX = \
-    re.compile('([^\w\s]*)\s*(\t|  )\s*([^\w\s]*)')
 EXTRANEOUS_WHITESPACE_REGEX = re.compile(r'[[({] | []}),;:]')
 
 
@@ -253,6 +251,7 @@ DeprecatedNotEqualsError = checker_error("W603", "'<>' is deprecated, use '!='",
 DeprecatedBackticksError = checker_error("W604", "backticks are deprecated, use 'repr()'", "DeprecatedBackticksError")
 MissingWhitespaceError = checker_error("E225", "missing whitespace around operator", "MissingWhitespaceError")
 
+
 class LineTooLongError(CheckerError):
     code = "E501"
 
@@ -297,6 +296,29 @@ class WhitespaceBeforeParametersError(CheckerError):
     @property
     def text(self):
         return "whitespace before '%s'" % self.context
+
+
+class WhitespaceAroundOperatorError(CheckerError):
+
+    def __init__(self, column, whitespace, error_is_before_operator):
+        self.column = column
+        self.whitespace_is_tab = whitespace == "\t"
+        self.whitespace_description = "tab" if self.whitespace_is_tab else "multiple spaces"
+        self.before = error_is_before_operator
+        self.location_description = "before" if self.before else "after"
+
+    @property
+    def code(self):
+        code_map = {(True, True): "E223",
+                    (True, False): "E221",
+                    (False, True): "E224",
+                    (False, False): "E222",
+                   }
+        return code_map[(self.before, self.whitespace_is_tab)]
+
+    @property
+    def text(self):
+        return "%s %s operator" % (self.whitespace_description, self.location_description)
 
 
 ##############################################################################
@@ -736,7 +758,7 @@ class WhitespaceBeforeParameters(object):
             prev_end = end
 
 
-def whitespace_around_operator(logical_line):
+class WhitespaceAroundOperator(object):
     """
     Avoid extraneous whitespace in the following situations:
 
@@ -749,16 +771,32 @@ def whitespace_around_operator(logical_line):
     E223: a = 4\t+ 5
     E224: a = 4 +\t5
     """
-    for match in WHITESPACE_AROUND_OPERATOR_REGEX.finditer(logical_line):
-        before, whitespace, after = match.groups()
-        tab = whitespace == '\t'
-        offset = match.start(2)
-        if before in OPERATORS:
-            return offset, (tab and "E224 tab after operator" or
-                            "E222 multiple spaces after operator")
-        elif after in OPERATORS:
-            return offset, (tab and "E223 tab before operator" or
-                            "E221 multiple spaces before operator")
+
+    __metaclass__ = LogicalLineChecker
+
+    WHITESPACE_AROUND_OPERATOR_REGEX = re.compile('([^\w\s]*)\s*(\t|  )\s*([^\w\s]*)')
+
+    def find_error(self, line, document=None):
+        r"""
+        >>> checker = WhitespaceAroundOperator()
+        >>> checker.find_error(LogicalLine('a = 12 + 3'))
+        >>> checker.find_error(LogicalLine('a = 4  + 5'))
+        E221: 5
+        >>> checker.find_error(LogicalLine('a = 4 +  5'))
+        E222: 7
+        >>> checker.find_error(LogicalLine('a = 4\t+ 5'))
+        E223: 5
+        >>> checker.find_error(LogicalLine('a = 4 +\t5'))
+        E224: 7
+        """
+        for match in self.WHITESPACE_AROUND_OPERATOR_REGEX.finditer(line.logical_line):
+            before, whitespace, after = match.groups()
+            tab = whitespace == '\t'
+            offset = match.start(2)
+            if before in OPERATORS:
+                return WhitespaceAroundOperatorError(offset, whitespace, False)
+            elif after in OPERATORS:
+                return WhitespaceAroundOperatorError(offset, whitespace, True)
 
 
 class MissingWhitespaceAroundOperator(object):
