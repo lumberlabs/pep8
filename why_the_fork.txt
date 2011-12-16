@@ -1,0 +1,22 @@
+[These are preliminary notes.]
+
+Why go through and shred a perfectly functional script?
+
+It all started because I wanted to be able to use it as a module, not
+a script. And I thought it'd be nice if the script could *fix* some
+issues, in addition to pointing them out.
+
+That proved to be very difficult with the code as it was...
+
+* The original was very concise and compact, but not easily extensible.
+  (It was easy to add new checkers; but very hard to add in new functionality like
+  auto-fixers in an organized way.) This version explicitly adopts some extra
+  structure, and the extra verbosity that that brings.
+* The original had lots of global state, mixing of concerns, and printing straight
+  to the console. This made it extremely difficult to use as a module rather than
+  a script. This version tries to keep everything modular, with hiding of concerns,
+  and be designed explicitly to be used as a module as well as a script.
+* The original used its own special doctest format, which was impressively concise
+  and dual-purpose. I found myself wanting to use all the other Python tools I
+  have, which assume that you can run regular old Python doctests. This version
+  does all doctesting via the traditional `python -m doctest pep8.py`.
