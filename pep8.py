@@ -1428,7 +1428,7 @@ class Checker(object):
             line_obj = PhysicalLine(line, line_number=line_number)
             error = instance.find_error(line=line_obj, document=self.document)
             if error is not None:
-                self.report_error(line_number, error.column, error.description, cls)
+                self.report_error(line_number, error.column or 0, error.description, cls)
 
     def build_tokens_line(self):
         """
@@ -1501,15 +1501,16 @@ class Checker(object):
             line_obj = LogicalLine(self.logical_line, tokens=self.tokens)
             error = instance.find_error(line=line_obj, document=self.document)
             if error is not None:
+                error_column = error.column or 0
 
-                if isinstance(error.column, tuple):
-                    original_number, original_offset = error.column
+                if isinstance(error_column, tuple):
+                    original_number, original_offset = error_column
                 else:
                     for token_offset, token in self.mapping:
-                        if error.column >= token_offset:
+                        if error_column >= token_offset:
                             original_number = token[2][0]
                             original_offset = (token[2][1]
-                                               + error.column - token_offset)
+                                               + error_column - token_offset)
 
                 self.report_error(original_number, original_offset, error.description, cls)
 
