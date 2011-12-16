@@ -335,7 +335,24 @@ class WhitespaceAroundOperatorError(CheckerError):
 
 class MissingWhitespaceAfterSeparatorError(CheckerErrorWithContext):
     code = "E231"
-    text_format = "E231 missing whitespace after '%s'"
+    text_format = "missing whitespace after '%s'"
+
+
+class ExtraneousWhitespaceAfterError(CheckerErrorWithContext):
+    code = "E201"
+    text_format = "whitespace after '%s'"
+
+
+class ExtraneousWhitespaceBeforeClosingPunctuationError(CheckerErrorWithContext):
+    code = "E202"
+    text_format = "whitespace before '%s'"
+
+
+class ExtraneousWhitespaceBeforeSeparatorError(CheckerErrorWithContext):
+    code = "E203"
+    text_format = "whitespace before '%s'"
+
+
 
 
 ##############################################################################
@@ -637,7 +654,7 @@ def blank_lines(logical_line, blank_lines, indent_level, line_number,
             return 0, "E302 expected 2 blank lines, found %d" % max_blank_lines
 
 
-def extraneous_whitespace(logical_line):
+class ExtraneousWhitespace(object):
     """
     Avoid extraneous whitespace in the following situations:
 
@@ -657,18 +674,44 @@ def extraneous_whitespace(logical_line):
     E203: if x == 4: print x, y ; x, y = y, x
     E203: if x == 4 : print x, y; x, y = y, x
     """
-    line = logical_line
-    for match in EXTRANEOUS_WHITESPACE_REGEX.finditer(line):
-        text = match.group()
-        char = text.strip()
-        found = match.start()
-        if text == char + ' ' and char in '([{':
-            return found + 1, "E201 whitespace after '%s'" % char
-        if text == ' ' + char and line[found - 1] != ',':
-            if char in '}])':
-                return found, "E202 whitespace before '%s'" % char
-            if char in ',;:':
-                return found, "E203 whitespace before '%s'" % char
+
+    __metaclass__ = LogicalLineChecker
+
+    def find_error(self, line, previous_line=None, document=None):
+        r"""
+        >>> checker = ExtraneousWhitespace()
+        >>> checker.find_error(LogicalLine('spam(ham[1], {eggs: 2})'))
+        >>> checker.find_error(LogicalLine('spam( ham[1], {eggs: 2})'))
+        E201: 5
+        >>> checker.find_error(LogicalLine('spam(ham[ 1], {eggs: 2})'))
+        E201: 9
+        >>> checker.find_error(LogicalLine('spam(ham[1], { eggs: 2})'))
+        E201: 14
+        >>> checker.find_error(LogicalLine('spam(ham[1], {eggs: 2} )'))
+        E202: 22
+        >>> checker.find_error(LogicalLine('spam(ham[1 ], {eggs: 2})'))
+        E202: 10
+        >>> checker.find_error(LogicalLine('spam(ham[1], {eggs: 2 })'))
+        E202: 21
+        >>> checker.find_error(LogicalLine('if x == 4: print x, y; x, y = y , x'))
+        E203: 31
+        >>> checker.find_error(LogicalLine('if x == 4: print x, y ; x, y = y, x'))
+        E203: 21
+        >>> checker.find_error(LogicalLine('if x == 4 : print x, y; x, y = y, x'))
+        E203: 9
+        """
+        line = line.logical_line
+        for match in EXTRANEOUS_WHITESPACE_REGEX.finditer(line):
+            text = match.group()
+            char = text.strip()
+            found = match.start()
+            if text == char + ' ' and char in '([{':
+                return ExtraneousWhitespaceAfterError(found + 1, char)
+            if text == ' ' + char and line[found - 1] != ',':
+                if char in '}])':
+                    return ExtraneousWhitespaceBeforeClosingPunctuationError(found, char)
+                if char in ',;:':
+                    return ExtraneousWhitespaceBeforeSeparatorError(found, char)
 
 
 class MissingWhitespaceAfterSeparator(object):
