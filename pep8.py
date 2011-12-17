@@ -181,6 +181,11 @@ class PhysicalLine(object):
         self.physical_line = physical_line
         self.line_number = line_number
 
+    def original_location_for_column(self, column):
+        if column is None:
+            return self.line_number, 0
+        return self.line_number, column
+
 
 class LogicalLine(object):
 
@@ -210,14 +215,19 @@ class LogicalLine(object):
             line_io = StringIO.StringIO(self.logical_line)
             self.tokens = tokenize.generate_tokens(line_io.readline)
 
-
     def original_location_for_column(self, column):
-        for token_offset, token in self.token_offset_mapping:
-            if column >= token_offset:
-                token_start_row, token_start_col = token[2]
-                original_line_number = token_start_row
-                original_column = token_start_col + column - token_offset
-        return original_line_number, original_column
+        if column is None:
+            return self.line_number, 0
+        if isinstance(column, tuple):
+            for token_offset, token in self.token_offset_mapping:
+                if column >= token_offset:
+                    token_start_row, token_start_col = token[2]
+                    original_line_number = token_start_row
+                    original_column = token_start_col + column[1] - token_offset
+            return original_line_number, original_column
+        if isinstance(column, int):
+            return self.line_number, column
+        raise TypeError()
 
 
 def most_common_indent_char(list_of_strings, indent_chars=INDENTATION_WHITESPACE):
@@ -1623,7 +1633,8 @@ class Checker(object):
             physical_line_checker = cls(**checker_config)
             error = physical_line_checker.find_error(line=line_obj, document=self.document)
             if error is not None:
-                self.report_error(self.document.line_number, error.column or 0, error.description, cls)
+                original_line_number, original_column = line_obj.original_location_for_column(error.column)
+                self.report_error(original_line_number, original_column, error.description, cls)
 
     def check_logical(self, line, previous_line):
         """
@@ -1637,12 +1648,7 @@ class Checker(object):
             instance = cls(**checker_config)
             error = instance.find_error(line=line, previous_line=previous_line, document=self.document)
             if error is not None:
-                error_column = error.column if error.column is not None else 0
-
-                if isinstance(error_column, tuple):
-                    original_line_number, original_column = error_column
-                else:
-                    original_line_number, original_column = line.original_location_for_column(error_column)
+                original_line_number, original_column = line.original_location_for_column(error.column)
 
                 self.report_error(original_line_number, original_column, error.description, cls)
 
