@@ -187,7 +187,8 @@ class LogicalLine(object):
     def __init__(self, logical_line,
                  line_number=None,
                  tokens=None, autotokenize=None,
-                 blank_lines=None, blank_lines_before_comment=None):
+                 blank_lines=None, blank_lines_before_comment=None,
+                 token_offset_mapping=None):
         """
         >>> line = LogicalLine("    abc")
         >>> line.dedented_line
@@ -203,10 +204,20 @@ class LogicalLine(object):
         self.indent_level = indentation_level(indentation)
         self.dedented_line = self.logical_line[len(indentation):]
         self.line_number = line_number
+        self.token_offset_mapping = token_offset_mapping
 
         if autotokenize:
             line_io = StringIO.StringIO(self.logical_line)
             self.tokens = tokenize.generate_tokens(line_io.readline)
+
+
+    def original_location_for_column(self, column):
+        for token_offset, token in self.token_offset_mapping:
+            if column >= token_offset:
+                token_start_row, token_start_col = token[2]
+                original_line_number = token_start_row
+                original_column = token_start_col + column - token_offset
+        return original_line_number, original_column
 
 
 def most_common_indent_char(list_of_strings, indent_chars=INDENTATION_WHITESPACE):
@@ -1549,7 +1560,12 @@ def logical_lines(readline_fn, lines):
             parens -= 1
         if token_type == tokenize.NEWLINE and not parens:
             logical_line, mapping = build_line_from_tokens(tokens, lines)
-            yield logical_line, tokens, mapping, blank_lines, blank_lines_before_comment
+            line_obj = LogicalLine(logical_line,
+                                   tokens=tokens,
+                                   blank_lines=blank_lines,
+                                   blank_lines_before_comment=blank_lines_before_comment,
+                                   token_offset_mapping=mapping)
+            yield line_obj
             blank_lines = 0
             blank_lines_before_comment = 0
             tokens = []
@@ -1612,15 +1628,10 @@ class Checker(object):
                 self.report_error(self.document.line_number, error.column or 0, error.description, cls)
 
 
-    def check_logical(self, logical_line, tokens, mapping, blank_lines, blank_lines_before_comment):
+    def check_logical(self, line_obj):
         """
         Build a line from tokens and run all logical checks on it.
         """
-        line_obj = LogicalLine(logical_line,
-                               tokens=tokens,
-                               blank_lines=blank_lines,
-                               blank_lines_before_comment=blank_lines_before_comment,
-                               line_number=self.document.line_number)
 
         checker_config = {}  # e.g. {"max_line_length": 200}
 
@@ -1632,15 +1643,11 @@ class Checker(object):
                 error_column = error.column or 0
 
                 if isinstance(error_column, tuple):
-                    original_number, original_offset = error_column
+                    original_line_number, original_column = error_column
                 else:
-                    for token_offset, token in mapping:
-                        if error_column >= token_offset:
-                            original_number = token[2][0]
-                            original_offset = (token[2][1]
-                                               + error_column - token_offset)
+                    original_line_number, original_column = line_obj.original_location_for_column(error_column)
 
-                self.report_error(original_number, original_offset, error.description, cls)
+                self.report_error(original_line_number, original_column, error.description, cls)
 
         self.previous_line_obj = line_obj
 
@@ -1652,9 +1659,10 @@ class Checker(object):
         self.expected = expected or ()
         self.line_offset = line_offset
         self.file_errors = 0
-        for logical_line, tokens, mapping, blank_lines, blank_lines_before_comment in logical_lines(self.readline_check_physical, self.document.lines):
+        for logical_line in logical_lines(self.readline_check_physical, self.document.lines):
             options.counters['logical lines'] += 1
-            self.check_logical(logical_line, tokens, mapping, blank_lines, blank_lines_before_comment)
+            logical_line.line_number = self.document.line_number
+            self.check_logical(logical_line)
         return self.file_errors
 
     def report_error(self, line_number, offset, text, check):
