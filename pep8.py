@@ -280,6 +280,9 @@ class Document(object):
 class CheckerError(object):
     "The base class for all checker errors."
 
+    pep8 = None
+    line = None
+
     def __init__(self, column=None):
         self.column = column
 
@@ -294,6 +297,9 @@ class CheckerError(object):
             return "%s: %s" % (self.code, self.column)
         else:
             return self.code
+
+    def location(self):
+        return self.line.original_location_for_column(self.column)
 
 
 def checker_error(error_code, error_text, error_class_name):
@@ -1603,9 +1609,14 @@ class Results(object):
     def __init__(self):
         self.errors = []
 
-
     def add_error(self, error):
         self.errors.append(error)
+
+    def contains_error_with_code(self, code):
+        return any(error for error in self.errors if error.code == code)
+
+    def errors_ignoring(self, codes_to_ignore):
+        return [error for error in self.errors if error.code not in codes_to_ignore]
 
 
 class Checker(object):
@@ -1624,6 +1635,7 @@ class Checker(object):
 
         self.document = Document(lines)
         self.checker_config = {}  # e.g. {"max_line_length": 200}
+        self.results = Results()
 
     def readline_check_physical(self):
         """
@@ -1651,48 +1663,21 @@ class Checker(object):
             checker_instance = checker_class(**self.checker_config)
             error = checker_instance.find_error(line=line, previous_line=previous_line, document=self.document)
             if error is not None:
-                original_line_number, original_column = line.original_location_for_column(error.column)
-                self.report_error(original_line_number, original_column, error.description, checker_class)
+                error.pep8 = checker_class.__doc__
+                error.line = line
+                self.results.add_error(error)
 
-    def check_all(self, expected=None, line_offset=0):
+    def check_all(self):
         """
         Run all checks on the input file.
         """
-        self.expected = expected or ()
-        self.line_offset = line_offset
-        self.file_errors = 0
         previous_line = None
         for logical_line in logical_lines(self.readline_check_physical, self.document.lines):
             logical_line.line_number = self.document.line_number
             self.check_line(logical_line, previous_line)
             previous_line = logical_line
-        return self.file_errors
 
-    def report_error(self, line_number, offset, text, check):
-        """
-        Report an error, according to options.
-        """
-        code = text[:4]
-        if ignore_code(code):
-            return
-        if code in options.counters:
-            options.counters[code] += 1
-        else:
-            options.counters[code] = 1
-            options.messages[code] = text[5:]
-        if options.quiet or code in self.expected:
-            # Don't care about expected errors or warnings
-            return
-        if options.counters[code] == 1 or options.repeat:
-            message("%s:%s:%d: %s" %
-                    (self.filename, self.line_offset + line_number,
-                     offset + 1, text))
-            if options.show_source:
-                line = self.lines[line_number - 1]
-                message(line.rstrip())
-                message(' ' * offset + '^')
-            if options.show_pep8:
-                message(check.__doc__.lstrip('\n').rstrip())
+        return self.results
 
 
 def input_file(filename):
@@ -1859,16 +1844,15 @@ def run_tests(filename):
             label = '%s:%s:1' % (filename, line_offset + 1)
             codes = [c for c in codes if c != 'Okay']
             # Run the checker
-            errors = Checker(filename, testcase).check_all(codes, line_offset)
+            results = Checker(filename, testcase).check_all()
             # Check if the expected errors were found
             for code in codes:
-                if not options.counters.get(code):
-                    errors += 1
+                if not results.contains_error_with_code(code):
                     message('%s: error %s not found' % (label, code))
-            if options.verbose and not errors:
-                message('%s: passed (%s)' % (label, ' '.join(codes)))
-            # Keep showing errors for multiple tests
-            reset_counters()
+            extra_errors = results.errors_ignoring(frozenset(codes))
+            if extra_errors:
+                for error in extra_errors:
+                    message("Enexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
         # output the real line numbers
         line_offset = index
         # configure the expected errors
