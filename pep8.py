@@ -450,25 +450,25 @@ class TabsOrSpaces(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def find_error(self, line, document):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = TabsOrSpaces()
         >>> space_indented_document = Document([" "])
         >>> tab_indented_document = Document(["\t"])
-        >>> checker.find_error(PhysicalLine('if a == 0:'), space_indented_document)
-        >>> checker.find_error(PhysicalLine('        a = 1'), space_indented_document)
-        >>> checker.find_error(PhysicalLine('\ta = 1'), space_indented_document)
+        >>> checker.find_error(PhysicalLine('if a == 0:'), document=space_indented_document)
+        >>> checker.find_error(PhysicalLine('        a = 1'), document=space_indented_document)
+        >>> checker.find_error(PhysicalLine('\ta = 1'), document=space_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('        \ta = 1'), space_indented_document)
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), document=space_indented_document)
         E101: 8
-        >>> checker.find_error(PhysicalLine('\t        a = 1'), space_indented_document)
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), document=space_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('        a = 1'), tab_indented_document)
+        >>> checker.find_error(PhysicalLine('        a = 1'), document=tab_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('\ta = 1'), tab_indented_document)
-        >>> checker.find_error(PhysicalLine('        \ta = 1'), tab_indented_document)
+        >>> checker.find_error(PhysicalLine('\ta = 1'), document=tab_indented_document)
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), document=tab_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('\t        a = 1'), tab_indented_document)
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), document=tab_indented_document)
         E101: 1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -488,7 +488,7 @@ class TabsObsolete(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = TabsObsolete()
         >>> checker.find_error(PhysicalLine('a == 0'))
@@ -559,7 +559,7 @@ class TrailingWhitespace(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = TrailingWhitespace()
         >>> checker.find_error(PhysicalLine('spam(1)'))
@@ -597,16 +597,16 @@ class TrailingBlankLines(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def find_error(self, line, document):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = TrailingBlankLines()
         >>> one_line_document = Document([""])
         >>> two_line_document = Document(["", ""])
-        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), one_line_document)
-        >>> checker.find_error(PhysicalLine('', line_number=1), one_line_document)
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), document=one_line_document)
+        >>> checker.find_error(PhysicalLine('', line_number=1), document=one_line_document)
         W391
-        >>> checker.find_error(PhysicalLine('', line_number=1), two_line_document)
-        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), one_line_document)
+        >>> checker.find_error(PhysicalLine('', line_number=1), document=two_line_document)
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), document=one_line_document)
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
             return BlankLineAtEOFError()
@@ -619,7 +619,7 @@ class MissingNewline(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = MissingNewline()
         >>> checker.find_error(PhysicalLine(''))
@@ -656,7 +656,7 @@ class MaximumLineLength(object):
     def __init__(self, max_line_length=DEFAULT_MAX_LINE_LENGTH, **kwargs):
         self.max_line_length = max_line_length
 
-    def find_error(self, line, document=None):
+    def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = MaximumLineLength()
         >>> checker.find_error(PhysicalLine('a' * 80))
@@ -1597,6 +1597,17 @@ def logical_lines(readline_fn, lines):
                 # a comment which is on a line by itself.
                 tokens = []
 
+
+class Results(object):
+
+    def __init__(self):
+        self.errors = []
+
+
+    def add_error(self, error):
+        self.errors.append(error)
+
+
 class Checker(object):
     """
     Check coding style of a source file, code string, or list of code lines.
@@ -1612,6 +1623,7 @@ class Checker(object):
                 lines = readlines(filename)
 
         self.document = Document(lines)
+        self.checker_config = {}  # e.g. {"max_line_length": 200}
 
     def readline_check_physical(self):
         """
@@ -1620,37 +1632,27 @@ class Checker(object):
         """
         line = self.document.readline()
         if line:
-            self.check_physical(line)
+            line_obj = PhysicalLine(line, line_number=self.document.line_number)
+            self.check_line(line_obj, None)
         return line
 
-    def check_physical(self, line):
+    def check_line(self, line, previous_line):
         """
-        Run all physical checks on a raw input line.
+        Run all physical checks on an input line.
         """
-        line_obj = PhysicalLine(line, line_number=self.document.line_number)
-        checker_config = {}  # e.g. {"max_line_length": 200}
-        for cls in PHYSICAL_LINE_CHECKERS:
-            physical_line_checker = cls(**checker_config)
-            error = physical_line_checker.find_error(line=line_obj, document=self.document)
-            if error is not None:
-                original_line_number, original_column = line_obj.original_location_for_column(error.column)
-                self.report_error(original_line_number, original_column, error.description, cls)
+        if isinstance(line, PhysicalLine):
+            checker_classes = PHYSICAL_LINE_CHECKERS
+        elif isinstance(line, LogicalLine):
+            checker_classes = LOGICAL_LINE_CHECKERS
+        else:
+            raise TypeError
 
-    def check_logical(self, line, previous_line):
-        """
-        Build a line from tokens and run all logical checks on it.
-        """
-
-        checker_config = {}  # e.g. {"max_line_length": 200}
-
-        for cls in LOGICAL_LINE_CHECKERS:
-
-            instance = cls(**checker_config)
-            error = instance.find_error(line=line, previous_line=previous_line, document=self.document)
+        for checker_class in checker_classes:
+            checker_instance = checker_class(**self.checker_config)
+            error = checker_instance.find_error(line=line, previous_line=previous_line, document=self.document)
             if error is not None:
                 original_line_number, original_column = line.original_location_for_column(error.column)
-
-                self.report_error(original_line_number, original_column, error.description, cls)
+                self.report_error(original_line_number, original_column, error.description, checker_class)
 
     def check_all(self, expected=None, line_offset=0):
         """
@@ -1662,7 +1664,7 @@ class Checker(object):
         previous_line = None
         for logical_line in logical_lines(self.readline_check_physical, self.document.lines):
             logical_line.line_number = self.document.line_number
-            self.check_logical(logical_line, previous_line)
+            self.check_line(logical_line, previous_line)
             previous_line = logical_line
         return self.file_errors
 
