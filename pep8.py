@@ -1601,9 +1601,7 @@ class Checker(object):
             else:
                 lines = readlines(filename)
 
-        options.counters['physical lines'] += len(lines)
         self.document = Document(lines)
-        self.previous_line_obj = None
 
     def readline_check_physical(self):
         """
@@ -1627,8 +1625,7 @@ class Checker(object):
             if error is not None:
                 self.report_error(self.document.line_number, error.column or 0, error.description, cls)
 
-
-    def check_logical(self, line_obj):
+    def check_logical(self, line, previous_line):
         """
         Build a line from tokens and run all logical checks on it.
         """
@@ -1638,19 +1635,16 @@ class Checker(object):
         for cls in LOGICAL_LINE_CHECKERS:
 
             instance = cls(**checker_config)
-            error = instance.find_error(line=line_obj, previous_line=self.previous_line_obj, document=self.document)
+            error = instance.find_error(line=line, previous_line=previous_line, document=self.document)
             if error is not None:
                 error_column = error.column or 0
 
                 if isinstance(error_column, tuple):
                     original_line_number, original_column = error_column
                 else:
-                    original_line_number, original_column = line_obj.original_location_for_column(error_column)
+                    original_line_number, original_column = line.original_location_for_column(error_column)
 
                 self.report_error(original_line_number, original_column, error.description, cls)
-
-        self.previous_line_obj = line_obj
-
 
     def check_all(self, expected=None, line_offset=0):
         """
@@ -1659,10 +1653,11 @@ class Checker(object):
         self.expected = expected or ()
         self.line_offset = line_offset
         self.file_errors = 0
+        previous_line = None
         for logical_line in logical_lines(self.readline_check_physical, self.document.lines):
-            options.counters['logical lines'] += 1
             logical_line.line_number = self.document.line_number
-            self.check_logical(logical_line)
+            self.check_logical(logical_line, previous_line)
+            previous_line = logical_line
         return self.file_errors
 
     def report_error(self, line_number, offset, text, check):
@@ -1672,8 +1667,6 @@ class Checker(object):
         code = text[:4]
         if ignore_code(code):
             return
-        if options.quiet == 1 and not self.file_errors:
-            message(self.filename)
         if code in options.counters:
             options.counters[code] += 1
         else:
@@ -1682,7 +1675,6 @@ class Checker(object):
         if options.quiet or code in self.expected:
             # Don't care about expected errors or warnings
             return
-        self.file_errors += 1
         if options.counters[code] == 1 or options.repeat:
             message("%s:%s:%d: %s" %
                     (self.filename, self.line_offset + line_number,
