@@ -121,7 +121,6 @@ MAX_LINE_LENGTH = 79
 INDENT_REGEX = re.compile(r'([ \t]*)')
 ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
-EXTRANEOUS_WHITESPACE_REGEX = re.compile(r'[[({] | []}),;:]')
 
 
 WHITESPACE = ' \t'
@@ -742,6 +741,8 @@ class ExtraneousWhitespace(object):
 
     __metaclass__ = LogicalLineChecker
 
+    EXTRANEOUS_WHITESPACE_REGEX = re.compile(r'[[({] | []}),;:]')
+
     def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = ExtraneousWhitespace()
@@ -766,7 +767,7 @@ class ExtraneousWhitespace(object):
         E203: 9
         """
         line = line.logical_line
-        for match in EXTRANEOUS_WHITESPACE_REGEX.finditer(line):
+        for match in self.EXTRANEOUS_WHITESPACE_REGEX.finditer(line):
             text = match.group()
             char = text.strip()
             found = match.start()
