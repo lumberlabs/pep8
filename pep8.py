@@ -213,9 +213,19 @@ class LogicalLine(object):
 
 class Document(object):
 
-    def __init__(self, num_lines=None, indent_char=None):
-        self.num_lines = num_lines
-        self.indent_char = indent_char
+    def __init__(self, lines):
+        self.lines = lines
+        self.num_lines = len(lines)
+        self.indent_char = most_common_indent_char(self.lines)
+        self.line_number = 0
+
+    def readline(self):
+        try:
+            line = self.lines[self.line_number]
+        except IndexError:
+            line = ""
+        self.line_number += 1
+        return line
 
 
 ##############################################################################
@@ -1482,33 +1492,22 @@ class Checker(object):
     def __init__(self, filename="stdin", lines=None, code=None):
         self.filename = filename
 
-        if lines:
-            self.lines = lines
-        elif code:
-            self.lines = code.splitlines(True)
-        else:
-            self.lines = readlines(filename)
+        if not lines:
+            if code:
+                lines = code.splitlines(True)
+            else:
+                lines = readlines(filename)
 
-        options.counters['physical lines'] += len(self.lines)
-
-        self.document = Document(self.lines)
+        options.counters['physical lines'] += len(lines)
+        self.document = Document(lines)
         self.previous_line_obj = None
-
-    def readline(self):
-        """
-        Get the next line from the input buffer.
-        """
-        self.line_number += 1
-        if self.line_number > len(self.lines):
-            return ''
-        return self.lines[self.line_number - 1]
 
     def readline_check_physical(self):
         """
         Check and return the next physical line. This method can be
         used to feed tokenize.generate_tokens.
         """
-        line = self.readline()
+        line = self.document.readline()
         if line:
             self.check_physical(line)
         return line
@@ -1517,7 +1516,7 @@ class Checker(object):
         """
         Run all physical checks on a raw input line.
         """
-        line_number = self.line_number
+        line_number = self.document.line_number
         for cls in PHYSICAL_LINE_CHECKERS:
             checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
@@ -1567,15 +1566,15 @@ class Checker(object):
         Build a line from tokens and run all logical checks on it.
         """
         options.counters['logical lines'] += 1
-        logical_line, mapping = self.build_tokens_line(tokens, self.lines)
-        first_line = self.lines[mapping[0][1][2][0] - 1]
+        logical_line, mapping = self.build_tokens_line(tokens, self.document.lines)
+        first_line = self.document.lines[mapping[0][1][2][0] - 1]
         indent = first_line[:mapping[0][1][2][1]]
 
         line_obj = LogicalLine(indent + logical_line,
                                tokens=tokens,
                                blank_lines=blank_lines,
                                blank_lines_before_comment=blank_lines_before_comment,
-                               line_number=self.line_number)
+                               line_number=self.document.line_number)
 
         for cls in LOGICAL_LINE_CHECKERS:
 
@@ -1605,7 +1604,6 @@ class Checker(object):
         """
         self.expected = expected or ()
         self.line_offset = line_offset
-        self.line_number = 0
         self.file_errors = 0
         blank_lines = 0
         blank_lines_before_comment = 0
