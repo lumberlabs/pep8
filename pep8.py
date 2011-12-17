@@ -116,7 +116,6 @@ except ImportsError:
 
 DEFAULT_EXCLUDE = '.svn,CVS,.bzr,.hg,.git'
 DEFAULT_IGNORE = 'E24'
-MAX_LINE_LENGTH = 79
 
 INDENT_REGEX = re.compile(r'([ \t]*)')
 ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
@@ -631,7 +630,9 @@ class MaximumLineLength(object):
 
     __metaclass__ = PhysicalLineChecker
 
-    def __init__(self, max_line_length=MAX_LINE_LENGTH, **kwargs):
+    DEFAULT_MAX_LINE_LENGTH = 79
+
+    def __init__(self, max_line_length=self.DEFAULT_MAX_LINE_LENGTH, **kwargs):
         self.max_line_length = max_line_length
 
     def find_error(self, line, document=None):
