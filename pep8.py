@@ -1474,18 +1474,18 @@ class Checker(object):
     Load a Python source file, tokenize it, check coding style.
     """
 
-    def __init__(self, filename, lines=None):
+    def __init__(self, filename="stdin", lines=None, code=None):
         self.filename = filename
-        if filename is None:
-            self.filename = 'stdin'
-            self.lines = lines or []
-        elif lines is None:
-            self.lines = readlines(filename)
-        else:
+
+        if lines:
             self.lines = lines
+        elif code:
+            self.lines = code.splitlines(True)
+        else:
+            self.lines = readlines(filename)
+
         options.counters['physical lines'] += len(self.lines)
 
-        self.indent_char = most_common_indent_char(self.lines)  # TODO: Remove me
         self.document = Document(num_lines=len(self.lines),
                                  indent_char=most_common_indent_char(self.lines))
         self.previous_line_obj = None
