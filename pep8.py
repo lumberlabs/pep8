@@ -1737,55 +1737,6 @@ def filename_match(filename):
             return True
 
 
-def ignore_code(code):
-    """
-    Check if options.ignore contains a prefix of the error code.
-    If options.select contains a prefix of the error code, do not ignore it.
-    """
-    for select in options.select:
-        if code.startswith(select):
-            return False
-    for ignore in options.ignore:
-        if code.startswith(ignore):
-            return True
-
-
-def reset_counters():
-    for key in list(options.counters.keys()):
-        if key not in BENCHMARK_KEYS:
-            del options.counters[key]
-    options.messages = {}
-
-
-def get_error_statistics():
-    """Get error statistics."""
-    return get_statistics("E")
-
-
-def get_warning_statistics():
-    """Get warning statistics."""
-    return get_statistics("W")
-
-
-def get_statistics(prefix=''):
-    """
-    Get statistics for message codes that start with the prefix.
-
-    prefix='' matches all errors and warnings
-    prefix='E' matches all errors
-    prefix='W' matches all warnings
-    prefix='E4' matches all errors that have to do with imports
-    """
-    stats = []
-    keys = list(options.messages.keys())
-    keys.sort()
-    for key in keys:
-        if key.startswith(prefix):
-            stats.append('%-7s %s %s' %
-                         (options.counters[key], key, options.messages[key]))
-    return stats
-
-
 def run_tests(filename):
     """
     Run all the tests from a file.
@@ -1925,7 +1876,6 @@ def main():
         elif not excluded(path):
             failed = runner(path)
     elapsed = time.time() - start_time
-    print elapsed
     return failed
 
 
