@@ -631,7 +631,7 @@ class MaximumLineLength(object):
 
     DEFAULT_MAX_LINE_LENGTH = 79
 
-    def __init__(self, max_line_length=self.DEFAULT_MAX_LINE_LENGTH, **kwargs):
+    def __init__(self, max_line_length=DEFAULT_MAX_LINE_LENGTH, **kwargs):
         self.max_line_length = max_line_length
 
     def find_error(self, line, document=None):
