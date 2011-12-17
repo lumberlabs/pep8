@@ -398,20 +398,22 @@ class TabsOrSpaces(object):
     def find_error(self, line, document):
         r"""
         >>> checker = TabsOrSpaces()
-        >>> checker.find_error(PhysicalLine('if a == 0:'), Document(indent_char=' '))
-        >>> checker.find_error(PhysicalLine('        a = 1'), Document(indent_char=' '))
-        >>> checker.find_error(PhysicalLine('\ta = 1'), Document(indent_char=' '))
+        >>> space_indented_document = Document([" "])
+        >>> tab_indented_document = Document(["\t"])
+        >>> checker.find_error(PhysicalLine('if a == 0:'), space_indented_document)
+        >>> checker.find_error(PhysicalLine('        a = 1'), space_indented_document)
+        >>> checker.find_error(PhysicalLine('\ta = 1'), space_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('        \ta = 1'), Document(indent_char=' '))
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), space_indented_document)
         E101: 8
-        >>> checker.find_error(PhysicalLine('\t        a = 1'), Document(indent_char=' '))
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), space_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('        a = 1'), Document(indent_char='\t'))
+        >>> checker.find_error(PhysicalLine('        a = 1'), tab_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('\ta = 1'), Document(indent_char='\t'))
-        >>> checker.find_error(PhysicalLine('        \ta = 1'), Document(indent_char='\t'))
+        >>> checker.find_error(PhysicalLine('\ta = 1'), tab_indented_document)
+        >>> checker.find_error(PhysicalLine('        \ta = 1'), tab_indented_document)
         E101: 0
-        >>> checker.find_error(PhysicalLine('\t        a = 1'), Document(indent_char='\t'))
+        >>> checker.find_error(PhysicalLine('\t        a = 1'), tab_indented_document)
         E101: 1
         """
         indent = INDENT_REGEX.match(line.physical_line).group(1)
@@ -543,11 +545,13 @@ class TrailingBlankLines(object):
     def find_error(self, line, document):
         r"""
         >>> checker = TrailingBlankLines()
-        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
-        >>> checker.find_error(PhysicalLine('', line_number=1), Document(num_lines=1))
+        >>> one_line_document = Document([""])
+        >>> two_line_document = Document(["", ""])
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), one_line_document)
+        >>> checker.find_error(PhysicalLine('', line_number=1), one_line_document)
         W391
-        >>> checker.find_error(PhysicalLine('', line_number=1), Document(num_lines=2))
-        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), Document(num_lines=1))
+        >>> checker.find_error(PhysicalLine('', line_number=1), two_line_document)
+        >>> checker.find_error(PhysicalLine('a == 0', line_number=1), one_line_document)
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
             return BlankLineAtEOFError()
@@ -804,15 +808,16 @@ class Indentation(object):
     def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = Indentation()
-        >>> checker.find_error(LogicalLine('a = 1'), previous_line=LogicalLine(''), document=Document(indent_char=' '))
-        >>> checker.find_error(LogicalLine('if a == 0:'), previous_line=LogicalLine('    a = 1'), document=Document(indent_char=' '))
-        >>> checker.find_error(LogicalLine('  a = 1'), previous_line=LogicalLine(''), document=Document(indent_char=' '))
+        >>> space_indented_document = Document([" "])
+        >>> checker.find_error(LogicalLine('a = 1'), previous_line=LogicalLine(''), document=space_indented_document)
+        >>> checker.find_error(LogicalLine('if a == 0:'), previous_line=LogicalLine('    a = 1'), document=space_indented_document)
+        >>> checker.find_error(LogicalLine('  a = 1'), previous_line=LogicalLine(''), document=space_indented_document)
         E111
-        >>> checker.find_error(LogicalLine('    pass'), previous_line=LogicalLine('for item in items:'), document=Document(indent_char=' '))
-        >>> checker.find_error(LogicalLine('pass'), previous_line=LogicalLine('for item in items:'), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('    pass'), previous_line=LogicalLine('for item in items:'), document=space_indented_document)
+        >>> checker.find_error(LogicalLine('pass'), previous_line=LogicalLine('for item in items:'), document=space_indented_document)
         E112
-        >>> checker.find_error(LogicalLine('b = 2'), previous_line=LogicalLine('a = 1'), document=Document(indent_char=' '))
-        >>> checker.find_error(LogicalLine('    b = 2'), previous_line=LogicalLine('a = 1'), document=Document(indent_char=' '))
+        >>> checker.find_error(LogicalLine('b = 2'), previous_line=LogicalLine('a = 1'), document=space_indented_document)
+        >>> checker.find_error(LogicalLine('    b = 2'), previous_line=LogicalLine('a = 1'), document=space_indented_document)
         E113
         """
         if document.indent_char == ' ' and line.indent_level % 4:
@@ -1486,8 +1491,7 @@ class Checker(object):
 
         options.counters['physical lines'] += len(self.lines)
 
-        self.document = Document(num_lines=len(self.lines),
-                                 indent_char=most_common_indent_char(self.lines))
+        self.document = Document(self.lines)
         self.previous_line_obj = None
 
     def readline(self):
