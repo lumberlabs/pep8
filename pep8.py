@@ -1517,14 +1517,13 @@ class Checker(object):
         """
         Run all physical checks on a raw input line.
         """
-        line_number = self.document.line_number
+        line_obj = PhysicalLine(line, line_number=self.document.line_number)
+        checker_config = {}  # e.g. {"max_line_length": 200}
         for cls in PHYSICAL_LINE_CHECKERS:
-            checker_config = {}  # e.g. {"max_line_length": 200}
-            instance = cls(**checker_config)
-            line_obj = PhysicalLine(line, line_number=line_number)
-            error = instance.find_error(line=line_obj, document=self.document)
+            physical_line_checker = cls(**checker_config)
+            error = physical_line_checker.find_error(line=line_obj, document=self.document)
             if error is not None:
-                self.report_error(line_number, error.column or 0, error.description, cls)
+                self.report_error(self.document.line_number, error.column or 0, error.description, cls)
 
     def build_tokens_line(self, tokens, lines):
         """
