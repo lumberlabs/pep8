@@ -1684,15 +1684,15 @@ def input_file(filename):
     """
     Run all checks on a Python source file.
     """
-    if options.verbose:
-        message('checking ' + filename)
-    errors = Checker(filename).check_all()
+    results = Checker(filename).check_all()
+    return len(results.errors) > 0
 
 
 def input_dir(dirname, runner=None):
     """
     Check all Python source files in this directory and all subdirectories.
     """
+    failed = False
     dirname = dirname.rstrip('/')
     if excluded(dirname):
         return
@@ -1710,7 +1710,8 @@ def input_dir(dirname, runner=None):
         for filename in files:
             if filename_match(filename) and not excluded(filename):
                 options.counters['files'] += 1
-                runner(os.path.join(root, filename))
+                failed = failed or runner(os.path.join(root, filename))
+    return failed
 
 
 def excluded(filename):
@@ -1785,16 +1786,6 @@ def get_statistics(prefix=''):
     return stats
 
 
-def get_count(prefix=''):
-    """Return the total count of errors and warnings."""
-    keys = list(options.messages.keys())
-    count = 0
-    for key in keys:
-        if key.startswith(prefix):
-            count += options.counters[key]
-    return count
-
-
 def run_tests(filename):
     """
     Run all the tests from a file.
@@ -1813,6 +1804,7 @@ def run_tests(filename):
      * Following example is conform:            #: Okay
      * Don't check these lines:                 #:
     """
+    failed = False
     lines = readlines(filename) + ['#:\n']
     line_offset = 0
     codes = ['Okay']
@@ -1832,16 +1824,19 @@ def run_tests(filename):
             for code in codes:
                 if not results.contains_error_with_code(code):
                     message('%s: error %s not found' % (label, code))
+                    failed = True
             extra_errors = results.errors_ignoring(frozenset(codes))
             if extra_errors:
                 for error in extra_errors:
-                    message("Enexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
+                    message("Unexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
+                    failed = True
         # output the real line numbers
         line_offset = index
         # configure the expected errors
         codes = line.split()[1:]
         # empty the test case buffer
         del testcase[:]
+    return failed
 
 
 def process_options(arglist=None):
@@ -1914,7 +1909,7 @@ def process_options(arglist=None):
     return options, args
 
 
-def _main():
+def main():
     """
     Parse options and run checks on Python source.
     """
@@ -1926,17 +1921,13 @@ def _main():
     start_time = time.time()
     for path in args:
         if os.path.isdir(path):
-            input_dir(path, runner=runner)
+            failed = input_dir(path, runner=runner)
         elif not excluded(path):
-            options.counters['files'] += 1
-            runner(path)
+            failed = runner(path)
     elapsed = time.time() - start_time
-    count = get_count()
-    if count:
-        if options.count:
-            sys.stderr.write(str(count) + '\n')
-        sys.exit(1)
+    print elapsed
+    return failed
 
 
 if __name__ == '__main__':
-    _main()
+    sys.exit(int(main()))
