@@ -1589,7 +1589,7 @@ def logical_lines(readline_fn, lines):
 
 class Checker(object):
     """
-    Load a Python source file, tokenize it, check coding style.
+    Check coding style of a source file, code string, or list of code lines.
     """
 
     def __init__(self, filename="stdin", lines=None, code=None):
@@ -1637,7 +1637,7 @@ class Checker(object):
             instance = cls(**checker_config)
             error = instance.find_error(line=line, previous_line=previous_line, document=self.document)
             if error is not None:
-                error_column = error.column or 0
+                error_column = error.column if error.column is not None else 0
 
                 if isinstance(error_column, tuple):
                     original_line_number, original_column = error_column
