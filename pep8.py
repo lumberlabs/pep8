@@ -211,6 +211,32 @@ class LogicalLine(object):
             self.tokens = tokenize.generate_tokens(line_io.readline)
 
 
+def most_common_indent_char(list_of_strings, indent_chars=" \t"):
+    r"""
+    Determine which of a set of indentation characters occurs most in a list of lines.
+    Behavior is undetermined if there is a tie.
+
+    >>> most_common_indent_char([" a", " b", " c"], indent_chars=" \t")
+    ' '
+    >>> most_common_indent_char([" a", " b", "\tc"], indent_chars=" \t")
+    ' '
+    >>> most_common_indent_char([" a", "\tb", "\tc"], indent_chars=" \t")
+    '\t'
+    >>> most_common_indent_char([], indent_chars=" \t") in " \t"  # tie
+    True
+    >>> most_common_indent_char(["  a", "\tb", "\tc"], indent_chars=" \t") in " \t"  # tie
+    True
+    >>> most_common_indent_char([" a", " b", "cccc"], indent_chars=" c")
+    'c'
+    """
+    # quick heuristic to determine whether the file is indented with spaces or tabs
+    # not the most efficient, but simple: extract all indentation characters,
+    # and pick the most commonly occurring one.
+    all_indentation = "".join(leading_indentation(line, indent_chars=indent_chars) for line in list_of_strings)
+    most_common_indent_char = max((all_indentation.count(indent_char), indent_char) for indent_char in indent_chars)[1]
+    return most_common_indent_char
+
+
 class Document(object):
 
     def __init__(self, lines):
@@ -1456,32 +1482,6 @@ def leading_indentation(s, indent_chars=" \t"):
     'a b'
     """
     return s[:len(s) - len(s.lstrip(indent_chars))]
-
-
-def most_common_indent_char(list_of_strings, indent_chars=" \t"):
-    r"""
-    Determine which of a set of indentation characters occurs most in a list of lines.
-    Behavior is undetermined if there is a tie.
-
-    >>> most_common_indent_char([" a", " b", " c"], indent_chars=" \t")
-    ' '
-    >>> most_common_indent_char([" a", " b", "\tc"], indent_chars=" \t")
-    ' '
-    >>> most_common_indent_char([" a", "\tb", "\tc"], indent_chars=" \t")
-    '\t'
-    >>> most_common_indent_char([], indent_chars=" \t") in " \t"  # tie
-    True
-    >>> most_common_indent_char(["  a", "\tb", "\tc"], indent_chars=" \t") in " \t"  # tie
-    True
-    >>> most_common_indent_char([" a", " b", "cccc"], indent_chars=" c")
-    'c'
-    """
-    # quick heuristic to determine whether the file is indented with spaces or tabs
-    # not the most efficient, but simple: extract all indentation characters,
-    # and pick the most commonly occurring one.
-    all_indentation = "".join(leading_indentation(line, indent_chars=indent_chars) for line in list_of_strings)
-    most_common_indent_char = max((all_indentation.count(indent_char), indent_char) for indent_char in indent_chars)[1]
-    return most_common_indent_char
 
 
 class Checker(object):
