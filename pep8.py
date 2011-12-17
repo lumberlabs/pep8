@@ -120,8 +120,9 @@ DEFAULT_IGNORE = 'E24'
 INDENT_REGEX = re.compile(r'([ \t]*)')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
 
-
 INDENTATION_WHITESPACE = ' \t'
+OPEN_PARENS = '([{'
+CLOSE_PARENS = ')]}'
 
 BINARY_OPERATORS = frozenset(['**=', '*=', '+=', '-=', '!=', '<>',
     '%=', '^=', '&=', '|=', '==', '/=', '//=', '<=', '>=', '<<=', '>>=',
@@ -771,10 +772,10 @@ class ExtraneousWhitespace(object):
             text = match.group()
             char = text.strip()
             found = match.start()
-            if text == char + ' ' and char in '([{':
+            if text == char + ' ' and char in OPEN_PARENS:
                 return ExtraneousWhitespaceAfterError(found + 1, char)
             if text == ' ' + char and line[found - 1] != ',':
-                if char in '}])':
+                if char in CLOSE_PARENS:
                     return ExtraneousWhitespaceBeforeClosingPunctuationError(found, char)
                 if char in ',;:':
                     return ExtraneousWhitespaceBeforeSeparatorError(found, char)
@@ -909,7 +910,7 @@ class WhitespaceBeforeParameters(object):
             if (token_type == tokenize.OP and
                 text in '([' and
                 start != prev_end and
-                (prev_type == tokenize.NAME or prev_text in '}])') and
+                (prev_type == tokenize.NAME or prev_text in CLOSE_PARENS) and
                 # Syntax "class A (B):" is allowed, but avoid it
                 (index < 2 or tokens[index - 2][1] != 'class') and
                 # Allow "return (a.foo for a in range(5))"
@@ -1055,7 +1056,7 @@ class MissingWhitespaceAroundOperator(object):
                     # Allow unary operators: -123, -x, +1.
                     # Allow argument unpacking: foo(*args, **kwargs).
                     if prev_type == tokenize.OP:
-                        if prev_text in '}])':
+                        if prev_text in CLOSE_PARENS:
                             need_space = True
                     elif prev_type == tokenize.NAME:
                         if prev_text not in E225NOT_KEYWORDS:
@@ -1485,7 +1486,49 @@ def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
     return s[:len(s) - len(s.lstrip(indent_chars))]
 
 
-def logical_lines(readline_fn):
+def build_line_from_tokens(tokens, lines):
+    """
+    Build a logical line from tokens.
+    """
+    mapping = []
+    logical = []
+    length = 0
+    previous = None
+    for token in tokens:
+        token_type, text = token[:2]
+        if token_type in SKIP_TOKENS:
+            continue
+        if token_type == tokenize.STRING:
+            text = mute_string(text)
+        if previous:
+            end_line, end = previous[3]
+            start_line, start = token[2]
+            if end_line != start_line:  # different row
+                prev_text = lines[end_line - 1][end - 1]
+                if prev_text == ',' or (prev_text not in OPEN_PARENS
+                                        and text not in CLOSE_PARENS):
+                    logical.append(' ')
+                    length += 1
+            elif end != start:  # different column
+                fill = lines[end_line - 1][end:start]
+                logical.append(fill)
+                length += len(fill)
+        mapping.append((length, token))
+        logical.append(text)
+        length += len(text)
+        previous = token
+    logical_line = ''.join(logical)
+    assert logical_line.lstrip() == logical_line
+    assert logical_line.rstrip() == logical_line
+
+    first_line = lines[mapping[0][1][2][0] - 1]
+    indent = first_line[:mapping[0][1][2][1]]
+    full_logical_line = indent + logical_line
+
+    return full_logical_line, mapping
+
+
+def logical_lines(readline_fn, lines):
     blank_lines = 0
     blank_lines_before_comment = 0
     tokens = []
@@ -1500,12 +1543,13 @@ def logical_lines(readline_fn):
         #         (token[2][0], pos, tokenize.tok_name[token[0]], token[1]))
         tokens.append(token)
         token_type, text = token[0:2]
-        if token_type == tokenize.OP and text in '([{':
+        if token_type == tokenize.OP and text in OPEN_PARENS:
             parens += 1
-        if token_type == tokenize.OP and text in '}])':
+        if token_type == tokenize.OP and text in CLOSE_PARENS:
             parens -= 1
         if token_type == tokenize.NEWLINE and not parens:
-            yield tokens, blank_lines, blank_lines_before_comment
+            logical_line, mapping = build_line_from_tokens(tokens, lines)
+            yield logical_line, tokens, mapping, blank_lines, blank_lines_before_comment
             blank_lines = 0
             blank_lines_before_comment = 0
             tokens = []
@@ -1567,60 +1611,21 @@ class Checker(object):
             if error is not None:
                 self.report_error(self.document.line_number, error.column or 0, error.description, cls)
 
-    def build_tokens_line(self, tokens, lines):
-        """
-        Build a logical line from tokens.
-        """
-        mapping = []
-        logical = []
-        length = 0
-        previous = None
-        for token in tokens:
-            token_type, text = token[0:2]
-            if token_type in SKIP_TOKENS:
-                continue
-            if token_type == tokenize.STRING:
-                text = mute_string(text)
-            if previous:
-                end_line, end = previous[3]
-                start_line, start = token[2]
-                if end_line != start_line:  # different row
-                    prev_text = lines[end_line - 1][end - 1]
-                    if prev_text == ',' or (prev_text not in '{[('
-                                            and text not in '}])'):
-                        logical.append(' ')
-                        length += 1
-                elif end != start:  # different column
-                    fill = lines[end_line - 1][end:start]
-                    logical.append(fill)
-                    length += len(fill)
-            mapping.append((length, token))
-            logical.append(text)
-            length += len(text)
-            previous = token
-        logical_line = ''.join(logical)
-        assert logical_line.lstrip() == logical_line
-        assert logical_line.rstrip() == logical_line
-        return logical_line, mapping
 
-    def check_logical(self, tokens, blank_lines, blank_lines_before_comment):
+    def check_logical(self, logical_line, tokens, mapping, blank_lines, blank_lines_before_comment):
         """
         Build a line from tokens and run all logical checks on it.
         """
-        options.counters['logical lines'] += 1
-        logical_line, mapping = self.build_tokens_line(tokens, self.document.lines)
-        first_line = self.document.lines[mapping[0][1][2][0] - 1]
-        indent = first_line[:mapping[0][1][2][1]]
-
-        line_obj = LogicalLine(indent + logical_line,
+        line_obj = LogicalLine(logical_line,
                                tokens=tokens,
                                blank_lines=blank_lines,
                                blank_lines_before_comment=blank_lines_before_comment,
                                line_number=self.document.line_number)
 
+        checker_config = {}  # e.g. {"max_line_length": 200}
+
         for cls in LOGICAL_LINE_CHECKERS:
 
-            checker_config = {}  # e.g. {"max_line_length": 200}
             instance = cls(**checker_config)
             error = instance.find_error(line=line_obj, previous_line=self.previous_line_obj, document=self.document)
             if error is not None:
@@ -1647,8 +1652,9 @@ class Checker(object):
         self.expected = expected or ()
         self.line_offset = line_offset
         self.file_errors = 0
-        for tokens, blank_lines, blank_lines_before_comment in logical_lines(self.readline_check_physical):
-            self.check_logical(tokens, blank_lines, blank_lines_before_comment)
+        for logical_line, tokens, mapping, blank_lines, blank_lines_before_comment in logical_lines(self.readline_check_physical, self.document.lines):
+            options.counters['logical lines'] += 1
+            self.check_logical(logical_line, tokens, mapping, blank_lines, blank_lines_before_comment)
         return self.file_errors
 
     def report_error(self, line_number, offset, text, check):
