@@ -1795,23 +1795,6 @@ def get_count(prefix=''):
     return count
 
 
-def print_statistics(prefix=''):
-    """Print overall statistics (number of errors and warnings)."""
-    for line in get_statistics(prefix):
-        print(line)
-
-
-def print_benchmark(elapsed):
-    """
-    Print benchmark numbers.
-    """
-    print('%-7.2f %s' % (elapsed, 'seconds elapsed'))
-    for key in BENCHMARK_KEYS:
-        print('%-7d %s per second (%d total)' % (
-            options.counters[key] / elapsed, key,
-            options.counters[key]))
-
-
 def run_tests(filename):
     """
     Run all the tests from a file.
@@ -1948,10 +1931,6 @@ def _main():
             options.counters['files'] += 1
             runner(path)
     elapsed = time.time() - start_time
-    if options.statistics:
-        print_statistics()
-    if options.benchmark:
-        print_benchmark(elapsed)
     count = get_count()
     if count:
         if options.count:
