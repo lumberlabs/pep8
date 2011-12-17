@@ -123,7 +123,7 @@ ERRORCODE_REGEX = re.compile(r'[EW]\d{3}')
 DOCSTRING_REGEX = re.compile(r'u?r?["\']')
 
 
-WHITESPACE = ' \t'
+INDENTATION_WHITESPACE = ' \t'
 
 BINARY_OPERATORS = frozenset(['**=', '*=', '+=', '-=', '!=', '<>',
     '%=', '^=', '&=', '|=', '==', '/=', '//=', '<=', '>=', '<<=', '>>=',
@@ -210,20 +210,20 @@ class LogicalLine(object):
             self.tokens = tokenize.generate_tokens(line_io.readline)
 
 
-def most_common_indent_char(list_of_strings, indent_chars=" \t"):
+def most_common_indent_char(list_of_strings, indent_chars=INDENTATION_WHITESPACE):
     r"""
     Determine which of a set of indentation characters occurs most in a list of lines.
     Behavior is undetermined if there is a tie.
 
-    >>> most_common_indent_char([" a", " b", " c"], indent_chars=" \t")
+    >>> most_common_indent_char([" a", " b", " c"])
     ' '
-    >>> most_common_indent_char([" a", " b", "\tc"], indent_chars=" \t")
+    >>> most_common_indent_char([" a", " b", "\tc"])
     ' '
-    >>> most_common_indent_char([" a", "\tb", "\tc"], indent_chars=" \t")
+    >>> most_common_indent_char([" a", "\tb", "\tc"])
     '\t'
-    >>> most_common_indent_char([], indent_chars=" \t") in " \t"  # tie
+    >>> most_common_indent_char([]) in INDENTATION_WHITESPACE  # tie
     True
-    >>> most_common_indent_char(["  a", "\tb", "\tc"], indent_chars=" \t") in " \t"  # tie
+    >>> most_common_indent_char(["  a", "\tb", "\tc"]) in INDENTATION_WHITESPACE  # tie
     True
     >>> most_common_indent_char([" a", " b", "cccc"], indent_chars=" c")
     'c'
@@ -813,7 +813,7 @@ class MissingWhitespaceAfterSeparator(object):
         line = line.logical_line
         for index in range(len(line) - 1):
             char = line[index]
-            if char in ',;:' and line[index + 1] not in WHITESPACE:
+            if char in ',;:' and line[index + 1] not in INDENTATION_WHITESPACE:
                 before = line[:index]
                 if char == ':' and before.count('[') > before.count(']'):
                     continue  # Slice syntax, no space required
@@ -1465,7 +1465,7 @@ def message(text):
 ##############################################################################
 
 
-def leading_indentation(s, indent_chars=" \t"):
+def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
     r"""
     Returns the leading indentation for a string s.
     
