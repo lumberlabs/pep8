@@ -1485,6 +1485,48 @@ def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
     return s[:len(s) - len(s.lstrip(indent_chars))]
 
 
+def logical_lines(readline_fn):
+    blank_lines = 0
+    blank_lines_before_comment = 0
+    tokens = []
+    parens = 0
+    for token in tokenize.generate_tokens(readline_fn):
+        # if options.verbose >= 3:
+        #     if token[2][0] == token[3][0]:
+        #         pos = '[%s:%s]' % (token[2][1] or '', token[3][1])
+        #     else:
+        #         pos = 'l.%s' % token[3][0]
+        #     print('l.%s\t%s\t%s\t%r' %
+        #         (token[2][0], pos, tokenize.tok_name[token[0]], token[1]))
+        tokens.append(token)
+        token_type, text = token[0:2]
+        if token_type == tokenize.OP and text in '([{':
+            parens += 1
+        if token_type == tokenize.OP and text in '}])':
+            parens -= 1
+        if token_type == tokenize.NEWLINE and not parens:
+            yield tokens, blank_lines, blank_lines_before_comment
+            blank_lines = 0
+            blank_lines_before_comment = 0
+            tokens = []
+        if token_type == tokenize.NL and not parens:
+            if len(tokens) <= 1:
+                # The physical line contains only this token.
+                blank_lines += 1
+            tokens = []
+        if token_type == tokenize.COMMENT:
+            source_line = token[4]
+            token_start = token[2][1]
+            if source_line[:token_start].strip() == '':
+                blank_lines_before_comment = max(blank_lines,
+                    blank_lines_before_comment)
+                blank_lines = 0
+            if text.endswith('\n') and not parens:
+                # The comment also ends a physical line. This works around
+                # Python < 2.6 behaviour, which does not generate NL after
+                # a comment which is on a line by itself.
+                tokens = []
+
 class Checker(object):
     """
     Load a Python source file, tokenize it, check coding style.
@@ -1605,46 +1647,8 @@ class Checker(object):
         self.expected = expected or ()
         self.line_offset = line_offset
         self.file_errors = 0
-        blank_lines = 0
-        blank_lines_before_comment = 0
-        tokens = []
-        parens = 0
-        for token in tokenize.generate_tokens(self.readline_check_physical):
-            if options.verbose >= 3:
-                if token[2][0] == token[3][0]:
-                    pos = '[%s:%s]' % (token[2][1] or '', token[3][1])
-                else:
-                    pos = 'l.%s' % token[3][0]
-                print('l.%s\t%s\t%s\t%r' %
-                    (token[2][0], pos, tokenize.tok_name[token[0]], token[1]))
-            tokens.append(token)
-            token_type, text = token[0:2]
-            if token_type == tokenize.OP and text in '([{':
-                parens += 1
-            if token_type == tokenize.OP and text in '}])':
-                parens -= 1
-            if token_type == tokenize.NEWLINE and not parens:
-                self.check_logical(tokens, blank_lines, blank_lines_before_comment)
-                blank_lines = 0
-                blank_lines_before_comment = 0
-                tokens = []
-            if token_type == tokenize.NL and not parens:
-                if len(tokens) <= 1:
-                    # The physical line contains only this token.
-                    blank_lines += 1
-                tokens = []
-            if token_type == tokenize.COMMENT:
-                source_line = token[4]
-                token_start = token[2][1]
-                if source_line[:token_start].strip() == '':
-                    blank_lines_before_comment = max(blank_lines,
-                        blank_lines_before_comment)
-                    blank_lines = 0
-                if text.endswith('\n') and not parens:
-                    # The comment also ends a physical line. This works around
-                    # Python < 2.6 behaviour, which does not generate NL after
-                    # a comment which is on a line by itself.
-                    tokens = []
+        for tokens, blank_lines, blank_lines_before_comment in logical_lines(self.readline_check_physical):
+            self.check_logical(tokens, blank_lines, blank_lines_before_comment)
         return self.file_errors
 
     def report_error(self, line_number, offset, text, check):
