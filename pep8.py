@@ -1701,7 +1701,6 @@ def input_dir(dirname, runner=None):
     for root, dirs, files in os.walk(dirname):
         if options.verbose:
             message('directory ' + root)
-        options.counters['directories'] += 1
         dirs.sort()
         for subdir in dirs:
             if excluded(subdir):
@@ -1709,7 +1708,6 @@ def input_dir(dirname, runner=None):
         files.sort()
         for filename in files:
             if filename_match(filename) and not excluded(filename):
-                options.counters['files'] += 1
                 failed = failed or runner(os.path.join(root, filename))
     return failed
 
@@ -1855,7 +1853,6 @@ def process_options(arglist=None):
     else:
         # The default choice: ignore controversial checks
         options.ignore = DEFAULT_IGNORE.split(',')
-    options.counters = dict.fromkeys(BENCHMARK_KEYS, 0)
     options.messages = {}
     return options, args
 
