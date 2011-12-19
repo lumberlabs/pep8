@@ -130,8 +130,6 @@ UNARY_OPERATORS = frozenset(['>>', '**', '*', '+', '-'])
 OPERATORS = BINARY_OPERATORS | UNARY_OPERATORS
 SKIP_TOKENS = frozenset([tokenize.COMMENT, tokenize.NL, tokenize.INDENT,
                          tokenize.DEDENT, tokenize.NEWLINE])
-E225NOT_KEYWORDS = (frozenset(keyword.kwlist + ['print']) -
-                    frozenset(['False', 'None', 'True']))
 
 options = None
 args = None
@@ -1022,6 +1020,9 @@ class MissingWhitespaceAroundOperator(object):
 
     __metaclass__ = LogicalLineChecker
 
+    E225NOT_KEYWORDS = (frozenset(keyword.kwlist + ['print']) -
+                        frozenset(['False', 'None', 'True']))
+
     def find_error(self, line, previous_line=None, document=None):
         r"""
         >>> checker = MissingWhitespaceAroundOperator()
@@ -1086,7 +1087,7 @@ class MissingWhitespaceAroundOperator(object):
                         if prev_text in CLOSE_PARENS:
                             need_space = True
                     elif prev_type == tokenize.NAME:
-                        if prev_text not in E225NOT_KEYWORDS:
+                        if prev_text not in self.E225NOT_KEYWORDS:
                             need_space = True
                     else:
                         need_space = True
