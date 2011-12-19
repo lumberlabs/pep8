@@ -132,7 +132,6 @@ SKIP_TOKENS = frozenset([tokenize.COMMENT, tokenize.NL, tokenize.INDENT,
                          tokenize.DEDENT, tokenize.NEWLINE])
 E225NOT_KEYWORDS = (frozenset(keyword.kwlist + ['print']) -
                     frozenset(['False', 'None', 'True']))
-BENCHMARK_KEYS = ('directories', 'files', 'logical lines', 'physical lines')
 
 options = None
 args = None
