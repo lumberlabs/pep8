@@ -118,7 +118,6 @@ DEFAULT_EXCLUDE = '.svn,CVS,.bzr,.hg,.git'
 DEFAULT_IGNORE = 'E24'
 
 INDENT_REGEX = re.compile(r'([ \t]*)')
-DOCSTRING_REGEX = re.compile(r'u?r?["\']')
 
 INDENTATION_WHITESPACE = ' \t'
 OPEN_PARENS = '([{'
@@ -722,6 +721,8 @@ class BlankLines(object):
 
     __metaclass__ = LogicalLineChecker
 
+    DOCSTRING_REGEX = re.compile(r'u?r?["\']')
+
     def find_error(self, line, previous_line=None, document=None):
         r"""
         # >>> checker = BlankLines()
@@ -740,7 +741,7 @@ class BlankLines(object):
               line.dedented_line.startswith('@')):
             if line.indent_level:
                 if not (max_blank_lines or previous_line.indent_level < line.indent_level or
-                        DOCSTRING_REGEX.match(previous_line.logical_line)):
+                        self.DOCSTRING_REGEX.match(previous_line.logical_line)):
                     return MissingBlankLineError()
             elif max_blank_lines != 2:
                 return ExpectedTwoBlankLinesError(0, max_blank_lines)
