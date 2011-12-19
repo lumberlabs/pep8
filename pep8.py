@@ -1482,13 +1482,6 @@ def mute_string(text):
     return text[:start] + 'x' * (end - start) + text[end:]
 
 
-def message(text):
-    """Print a message."""
-    # print >> sys.stderr, options.prog + ': ' + text
-    # print >> sys.stderr, text
-    print(text)
-
-
 ##############################################################################
 # Framework to run all checks
 ##############################################################################
@@ -1562,13 +1555,6 @@ def logical_lines(readline_fn, lines):
     tokens = []
     parens = 0
     for token in tokenize.generate_tokens(readline_fn):
-        # if options.verbose >= 3:
-        #     if token[2][0] == token[3][0]:
-        #         pos = '[%s:%s]' % (token[2][1] or '', token[3][1])
-        #     else:
-        #         pos = 'l.%s' % token[3][0]
-        #     print('l.%s\t%s\t%s\t%r' %
-        #         (token[2][0], pos, tokenize.tok_name[token[0]], token[1]))
         tokens.append(token)
         token_type, text = token[0:2]
         if token_type == tokenize.OP and text in OPEN_PARENS:
@@ -1700,8 +1686,6 @@ def input_dir(dirname, runner=None):
     if runner is None:
         runner = input_file
     for root, dirs, files in os.walk(dirname):
-        if options.verbose:
-            message('directory ' + root)
         dirs.sort()
         for subdir in dirs:
             if excluded(subdir):
@@ -1754,6 +1738,9 @@ def run_tests(filename):
      * Following example is conform:            #: Okay
      * Don't check these lines:                 #:
     """
+    # TODO: Instead of printing below, raise assertions...and
+    # generally set up these unit tests to be runnable by
+    # nose, not using command line flags.
     failed = False
     lines = readlines(filename) + ['#:\n']
     line_offset = 0
@@ -1773,12 +1760,12 @@ def run_tests(filename):
             # Check if the expected errors were found
             for code in codes:
                 if not results.contains_error_with_code(code):
-                    message('%s: error %s not found' % (label, code))
+                    print('%s: error %s not found' % (label, code))
                     failed = True
             extra_errors = results.errors_ignoring(frozenset(codes))
             if extra_errors:
                 for error in extra_errors:
-                    message("Unexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
+                    print("Unexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
                     failed = True
         # output the real line numbers
         line_offset = index
