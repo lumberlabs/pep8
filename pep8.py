@@ -109,6 +109,13 @@ try:
 except NameError:
     from sets import ImmutableSet as frozenset
 
+# Make sure we get our local argparse.py
+argparse_path = os.path.abspath(__file__)
+sys.path.insert(0, argparse_path)
+import argparse
+sys.path.remove(argparse_path)
+del(argparse_path)
+
 try:
     import cStringIO as StringIO
 except ImportsError:
