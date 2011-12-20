@@ -1,6 +1,27 @@
 Changelog
 =========
 
+Major reorganization:
+
+* Orient towards using as a module, not a script.
+* Get rid of globals.
+* Add classes, extra structure, modularity.
+* Get rid of inline printing, sys.exits.
+* Use standard testing hooks -- normal python doctests and unit tests.
+
+Coming soon:
+
+* Auto-fix some errors.
+* Add a missing doctest or two.
+* Simplify / minimize / reorg error classes.
+* Update readme.
+* Different project name for clarity?
+* Restore script functionality? Backwards compability with original pep8?
+* Pull request?
+* Release other than bundling with pygithooks?
+
+
+~~~~~~~~~~ FORKED HERE ~~~~~~~~~~
 
 0.6.0 (2010-09-19)
 ------------------
