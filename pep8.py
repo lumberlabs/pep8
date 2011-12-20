@@ -1682,6 +1682,29 @@ def input_file(filename):
     return len(results.errors) > 0
 
 
+def matches_any_pattern(full_filename, patterns):
+    basename = os.path.basename(full_filename)
+    for pattern in patterns:
+        if fnmatch(basename, pattern):
+            return True
+
+
+def matching_filenames(directory, include_patterns=None, exclude_patterns=None):
+    for root, dirs, files in os.walk(directory):
+
+        dirs.sort()
+        for subdir in dirs:
+            if matches_any_pattern(subdir, exclude_patterns):
+                dirs.remove(subdir)
+
+        files.sort()
+        for filename in files:
+            whitelist_everything = not include_patterns
+            whitelisted = True if whitelist_everything else matches_any_pattern(filename, include_patterns)
+            if whitelisted:
+                yield os.path.join(root, filename)
+
+
 def input_dir(dirname, runner=None):
     """
     Check all Python source files in this directory and all subdirectories.
