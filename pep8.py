@@ -1430,8 +1430,6 @@ class Python3000Backticks(object):
 ##############################################################################
 
 
-
-
 def indentation_level(line):
     """
     Return the amount of indentation.
@@ -1484,9 +1482,16 @@ def mute_string(text):
     return text[:start] + 'x' * (end - start) + text[end:]
 
 
-##############################################################################
-# Framework to run all checks
-##############################################################################
+if '' == ''.encode():
+    # Python 2: implicit encoding.
+    def readlines(filename):
+        return open(filename).readlines()
+else:
+    # Python 3: decode to latin-1.
+    # This function is lazy, it does not read the encoding declaration.
+    # XXX: use tokenize.detect_encoding()
+    def readlines(filename):
+        return open(filename, encoding='latin-1').readlines()
 
 
 def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
@@ -1507,6 +1512,11 @@ def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
     'a b'
     """
     return s[:len(s) - len(s.lstrip(indent_chars))]
+
+
+##############################################################################
+# Framework to run all checks
+##############################################################################
 
 
 def build_line_from_tokens(tokens, lines):
@@ -1667,15 +1677,3 @@ class Checker(object):
             previous_line = logical_line
 
         return self.results
-
-
-if '' == ''.encode():
-    # Python 2: implicit encoding.
-    def readlines(filename):
-        return open(filename).readlines()
-else:
-    # Python 3: decode to latin-1.
-    # This function is lazy, it does not read the encoding declaration.
-    # XXX: use tokenize.detect_encoding()
-    def readlines(filename):
-        return open(filename, encoding='latin-1').readlines()
