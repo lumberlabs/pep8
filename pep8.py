@@ -110,7 +110,7 @@ except NameError:
     from sets import ImmutableSet as frozenset
 
 # Make sure we get our local argparse.py
-argparse_path = os.path.abspath(__file__)
+argparse_path = os.path.abspath(os.path.dirname(__file__)) + os.sep
 sys.path.insert(0, argparse_path)
 import argparse
 sys.path.remove(argparse_path)
@@ -1425,16 +1425,6 @@ class Python3000Backticks(object):
 ##############################################################################
 
 
-if '' == ''.encode():
-    # Python 2: implicit encoding.
-    def readlines(filename):
-        return open(filename).readlines()
-else:
-    # Python 3: decode to latin-1.
-    # This function is lazy, it does not read the encoding declaration.
-    # XXX: use tokenize.detect_encoding()
-    def readlines(filename):
-        return open(filename, encoding='latin-1').readlines()
 
 
 def indentation_level(line):
@@ -1674,225 +1664,13 @@ class Checker(object):
         return self.results
 
 
-def input_file(filename):
-    """
-    Run all checks on a Python source file.
-    """
-    results = Checker(filename).check_all()
-    return len(results.errors) > 0
-
-
-def matches_any_pattern(full_filename, patterns):
-    basename = os.path.basename(full_filename)
-    for pattern in patterns:
-        if fnmatch(basename, pattern):
-            return True
-
-
-def matching_filenames(directory, include_patterns=None, exclude_patterns=None):
-    for root, dirs, files in os.walk(directory):
-
-        dirs.sort()
-        for subdir in dirs:
-            if matches_any_pattern(subdir, exclude_patterns):
-                dirs.remove(subdir)
-
-        files.sort()
-        for filename in files:
-            whitelist_everything = not include_patterns
-            whitelisted = True if whitelist_everything else matches_any_pattern(filename, include_patterns)
-            if whitelisted:
-                yield os.path.join(root, filename)
-
-
-def input_dir(dirname, runner=None):
-    """
-    Check all Python source files in this directory and all subdirectories.
-    """
-    failed = False
-    dirname = dirname.rstrip('/')
-    if excluded(dirname):
-        return
-    if runner is None:
-        runner = input_file
-    for root, dirs, files in os.walk(dirname):
-        dirs.sort()
-        for subdir in dirs:
-            if excluded(subdir):
-                dirs.remove(subdir)
-        files.sort()
-        for filename in files:
-            if filename_match(filename) and not excluded(filename):
-                failed = failed or runner(os.path.join(root, filename))
-    return failed
-
-
-def excluded(filename):
-    """
-    Check if options.exclude contains a pattern that matches filename.
-    """
-    basename = os.path.basename(filename)
-    for pattern in options.exclude:
-        if fnmatch(basename, pattern):
-            # print basename, 'excluded because it matches', pattern
-            return True
-
-
-def filename_match(filename):
-    """
-    Check if options.filename contains a pattern that matches filename.
-    If options.filename is unspecified, this always returns True.
-    """
-    if not options.filename:
-        return True
-    for pattern in options.filename:
-        if fnmatch(filename, pattern):
-            return True
-
-
-def run_tests(filename):
-    """
-    Run all the tests from a file.
-
-    A test file can provide many tests. Each test starts with a declaration.
-    This declaration is a single line starting with '#:'.
-    It declares codes of expected failures, separated by spaces or 'Okay'
-    if no failure is expected.
-    If the file does not contain such declaration, it should pass all tests.
-    If the declaration is empty, following lines are not checked, until next
-    declaration.
-
-    Examples:
-
-     * Only E224 and W701 are expected:         #: E224 W701
-     * Following example is conform:            #: Okay
-     * Don't check these lines:                 #:
-    """
-    # TODO: Instead of printing below, raise assertions...and
-    # generally set up these unit tests to be runnable by
-    # nose, not using command line flags.
-    failed = False
-    lines = readlines(filename) + ['#:\n']
-    line_offset = 0
-    codes = ['Okay']
-    testcase = []
-    for index, line in enumerate(lines):
-        if not line.startswith('#:'):
-            if codes:
-                # Collect the lines of the test case
-                testcase.append(line)
-            continue
-        if codes and index > 0:
-            label = '%s:%s:1' % (filename, line_offset + 1)
-            codes = [c for c in codes if c != 'Okay']
-            # Run the checker
-            results = Checker(filename, testcase).check_all()
-            # Check if the expected errors were found
-            for code in codes:
-                if not results.contains_error_with_code(code):
-                    print('%s: error %s not found' % (label, code))
-                    failed = True
-            extra_errors = results.errors_ignoring(frozenset(codes))
-            if extra_errors:
-                for error in extra_errors:
-                    print("Unexpected %s in %s at line %s column %s" % (error.code, filename, error.location()[0], error.location()[1]))
-                    failed = True
-        # output the real line numbers
-        line_offset = index
-        # configure the expected errors
-        codes = line.split()[1:]
-        # empty the test case buffer
-        del testcase[:]
-    return failed
-
-
-def process_options(arglist=None):
-    """
-    Process options passed either via arglist or via command line args.
-    """
-    global options, args
-    parser = OptionParser(version=__version__,
-                          usage="%prog [options] input ...")
-    parser.add_option('-v', '--verbose', default=0, action='count',
-                      help="print status messages, or debug with -vv")
-    parser.add_option('-q', '--quiet', default=0, action='count',
-                      help="report only file names, or nothing with -qq")
-    parser.add_option('-r', '--repeat', action='store_true',
-                      help="show all occurrences of the same error")
-    parser.add_option('--exclude', metavar='patterns', default=DEFAULT_EXCLUDE,
-                      help="exclude files or directories which match these "
-                        "comma separated patterns (default: %s)" %
-                        DEFAULT_EXCLUDE)
-    parser.add_option('--filename', metavar='patterns', default='*.py',
-                      help="when parsing directories, only check filenames "
-                        "matching these comma separated patterns (default: "
-                        "*.py)")
-    parser.add_option('--select', metavar='errors', default='',
-                      help="select errors and warnings (e.g. E,W6)")
-    parser.add_option('--ignore', metavar='errors', default='',
-                      help="skip errors and warnings (e.g. E4,W)")
-    parser.add_option('--show-source', action='store_true',
-                      help="show source code for each error")
-    parser.add_option('--show-pep8', action='store_true',
-                      help="show text of PEP 8 for each error")
-    parser.add_option('--statistics', action='store_true',
-                      help="count errors and warnings")
-    parser.add_option('--count', action='store_true',
-                      help="print total number of errors and warnings "
-                        "to standard error and set exit code to 1 if "
-                        "total is not null")
-    parser.add_option('--benchmark', action='store_true',
-                      help="measure processing speed")
-    parser.add_option('--testsuite', metavar='dir',
-                      help="run regression tests from dir")
-    options, args = parser.parse_args(arglist)
-    if options.testsuite:
-        args.append(options.testsuite)
-    if not args:
-        parser.error('input not specified')
-    options.prog = os.path.basename(sys.argv[0])
-    options.exclude = options.exclude.split(',')
-    for index in range(len(options.exclude)):
-        options.exclude[index] = options.exclude[index].rstrip('/')
-    if options.filename:
-        options.filename = options.filename.split(',')
-    if options.select:
-        options.select = options.select.split(',')
-    else:
-        options.select = []
-    if options.ignore:
-        options.ignore = options.ignore.split(',')
-    elif options.select:
-        # Ignore all checks which are not explicitly selected
-        options.ignore = ['']
-    elif options.testsuite:
-        # For testsuite, all checks are required
-        options.ignore = []
-    else:
-        # The default choice: ignore controversial checks
-        options.ignore = DEFAULT_IGNORE.split(',')
-    options.messages = {}
-    return options, args
-
-
-def main():
-    """
-    Parse options and run checks on Python source.
-    """
-    options, args = process_options()
-    if options.testsuite:
-        runner = run_tests
-    else:
-        runner = input_file
-    start_time = time.time()
-    for path in args:
-        if os.path.isdir(path):
-            failed = input_dir(path, runner=runner)
-        elif not excluded(path):
-            failed = runner(path)
-    elapsed = time.time() - start_time
-    return failed
-
-
-if __name__ == '__main__':
-    sys.exit(int(main()))
+if '' == ''.encode():
+    # Python 2: implicit encoding.
+    def readlines(filename):
+        return open(filename).readlines()
+else:
+    # Python 3: decode to latin-1.
+    # This function is lazy, it does not read the encoding declaration.
+    # XXX: use tokenize.detect_encoding()
+    def readlines(filename):
+        return open(filename, encoding='latin-1').readlines()
