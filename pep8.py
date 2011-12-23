@@ -299,14 +299,55 @@ class Document(object):
 # Errors and warnings
 ##############################################################################
 
-class CheckerError(object):
-    "The base class for all checker errors."
+CHECKER_ERRORS = {"E251": {"text": "no spaces around keyword / parameter equals"},
+                  "E262": {"text": "inline comment should start with '# '"},
+                  "E101": {"text": "indentation contains mixed spaces and tabs"},
+                  "W191": {"text": "indentation contains tabs"},
+                  "W291": {"text": "trailing whitespace"},
+                  "W293": {"text": "blank line contains whitespace"},
+                  "W391": {"text": "blank line at end of file"},
+                  "W292": {"text": "no newline at end of file"},
+                  "E261": {"text": "at least two spaces before inline comment"},
+                  "E401": {"text": "multiple imports on one line"},
+                  "E701": {"text": "multiple statements on one line (colon)"},
+                  "E702": {"text": "multiple statements on one line (semicolon)"},
+                  "W601": {"text": ".has_key() is deprecated, use 'in'"},
+                  "W602": {"text": "deprecated form of raising exception"},
+                  "W603": {"text": "'<>' is deprecated, use '!='"},
+                  "W604": {"text": "backticks are deprecated, use 'repr()'"},
+                  "E225": {"text": "missing whitespace around operator"},
+                  "E111": {"text": "indentation is not a multiple of four"},
+                  "E112": {"text": "expected an indented block"},
+                  "E113": {"text": "unexpected indentation"},
+                  "E304": {"text": "blank lines found after function decorator"},
+                  "E301": {"text": "expected 1 blank line, found 0"},
+                  "E501": {"text": "line too long (%(line_length)d characters)"},
+                  "E241": {"text": "multiple spaces after %(separator)r"},
+                  "E242": {"text": "tab after %(separator)r"},
+                  "E211": {"text": "whitespace before %(char)r"},
+                  "E231": {"text": "missing whitespace after %r"},
+                  "E201": {"text": "whitespace after %(char)r"},
+                  "E202": {"text": "whitespace before %(char)r"},
+                  "E203": {"text": "whitespace before %(char)r"},
+                  "E303": {"text": "too many blank lines (%(blank_lines)d)"},
+                  "E302": {"text": "expected 2 blank lines, found %(blank_lines)d"},
+                  "E223": {"text": "tab before operator"},
+                  "E221": {"text": "multiple spaces before operator"},
+                  "E224": {"text": "tab after operator"},
+                  "E222": {"text": "multiple spaces after operator"},
+                  }
 
-    pep8 = None
+
+class CheckerError(object):
+    "A class that encapsulates checker errors."
+
     line = None
 
-    def __init__(self, column=None):
+    def __init__(self, code, column=None, **context):
+        self.code = code
         self.column = column
+        self.context = context
+        self.text = CHECKER_ERRORS[self.code]["text"] % self.context
 
     @property
     def description(self):
@@ -323,138 +364,6 @@ class CheckerError(object):
     def location(self):
         return self.line.original_location_for_column(self.column)
 
-
-def checker_error(error_code, error_text, error_class_name):
-    class CheckerErrorSubclass(CheckerError):
-        code = error_code
-        text = error_text
-    CheckerErrorSubclass.__name__ = error_class_name
-    return CheckerErrorSubclass
-
-NoSpaceAroundKeywordEqualsError = checker_error("E251", "no spaces around keyword / parameter equals", "NoSpaceAroundKeywordEqualsError")
-NoWhitespaceAfterInlineCommentError = checker_error("E262", "inline comment should start with '# '", "NoWhitespaceAfterInlineCommentError")
-MixedTabsAndSpacesError = checker_error("E101", "indentation contains mixed spaces and tabs", "MixedTabsAndSpacesError")
-UsedTabsError = checker_error("W191", "indentation contains tabs", "UsedTabsError")
-TrailingWhitespaceError = checker_error("W291", "trailing whitespace", "TrailingWhitespaceError")
-LineOfWhiteSpaceError = checker_error("W293", "blank line contains whitespace", "LineOfWhiteSpaceError")
-BlankLineAtEOFError = checker_error("W391", "blank line at end of file", "BlankLineAtEOFError")
-NoNewlineAtEOFError = checker_error("W292", "no newline at end of file", "NoNewlineAtEOFError")
-NotEnoughWhitespaceBeforeInlineCommentError = checker_error("E261", "at least two spaces before inline comment", "NotEnoughWhitespaceBeforeInlineCommentError")
-MultipleImportsOnOneLineError = checker_error("E401", "multiple imports on one line", "MultipleImportsOnOneLineError")
-CompoundStatementWithColonError = checker_error("E701", "multiple statements on one line (colon)", "CompoundStatementWithColonError")
-CompoundStatementWithSemicolonError = checker_error("E702", "multiple statements on one line (semicolon)", "CompoundStatementWithSemicolonError")
-HasKeyError = checker_error("W601", ".has_key() is deprecated, use 'in'", "HasKeyError")
-ExceptionWithCommaError = checker_error("W602", "deprecated form of raising exception", "ExceptionWithCommaError")
-DeprecatedNotEqualsError = checker_error("W603", "'<>' is deprecated, use '!='", "DeprecatedNotEqualsError")
-DeprecatedBackticksError = checker_error("W604", "backticks are deprecated, use 'repr()'", "DeprecatedBackticksError")
-MissingWhitespaceError = checker_error("E225", "missing whitespace around operator", "MissingWhitespaceError")
-IndentationNotMultipleOfFourError = checker_error("E111", "indentation is not a multiple of four", "IndentationNotMultipleOfFourError")
-InsufficientIndentationError = checker_error("E112", "expected an indented block", "InsufficientIndentationError")
-UnexpectedIndentationError = checker_error("E113", "unexpected indentation", "UnexpectedIndentationError")
-BlankLinesAfterDecoratorError = checker_error("E304", "blank lines found after function decorator", "BlankLinesAfterDecoratorError")
-MissingBlankLineError = checker_error("E301", "expected 1 blank line, found 0", "MissingBlankLineError")
-
-class LineTooLongError(CheckerError):
-    code = "E501"
-
-    def __init__(self, line_length, max_line_length):
-        self.column = max_line_length
-        self.max_line_length = max_line_length
-        self.line_length = line_length
-
-    @property
-    def text(self):
-        return "line too long (%d characters)" % self.line_length
-
-
-class WhitespaceSeparatorError(CheckerError):
-
-    def __init__(self, column, separator):
-        self.column = column
-        self.separator = separator
-
-    @property
-    def text(self):
-        return "%s after '%s'" % (self.space_type, self.separator)
-
-
-class MultipleSpacesAfterSeparatorError(WhitespaceSeparatorError):
-    code = "E241"
-    space_type = "multiple spaces"
-
-
-class TabAfterSeparatorError(WhitespaceSeparatorError):
-    code = "E242"
-    space_type = "tab"
-
-
-class CheckerErrorWithContext(CheckerError):
-
-    def __init__(self, column, context):
-        self.column = column
-        self.context = context
-
-    @property
-    def text(self):
-        return self.text_format % self.context
-
-
-class WhitespaceBeforeParametersError(CheckerErrorWithContext):
-    code = "E211"
-    text_format = "whitespace before '%s'"
-
-
-class WhitespaceAroundOperatorError(CheckerError):
-
-    def __init__(self, column, whitespace, error_is_before_operator):
-        self.column = column
-        self.whitespace_is_tab = whitespace == "\t"
-        self.whitespace_description = "tab" if self.whitespace_is_tab else "multiple spaces"
-        self.before = error_is_before_operator
-        self.location_description = "before" if self.before else "after"
-
-    @property
-    def code(self):
-        code_map = {(True, True): "E223",
-                    (True, False): "E221",
-                    (False, True): "E224",
-                    (False, False): "E222",
-                   }
-        return code_map[(self.before, self.whitespace_is_tab)]
-
-    @property
-    def text(self):
-        return "%s %s operator" % (self.whitespace_description, self.location_description)
-
-
-class MissingWhitespaceAfterSeparatorError(CheckerErrorWithContext):
-    code = "E231"
-    text_format = "missing whitespace after '%s'"
-
-
-class ExtraneousWhitespaceAfterError(CheckerErrorWithContext):
-    code = "E201"
-    text_format = "whitespace after '%s'"
-
-
-class ExtraneousWhitespaceBeforeClosingPunctuationError(CheckerErrorWithContext):
-    code = "E202"
-    text_format = "whitespace before '%s'"
-
-
-class ExtraneousWhitespaceBeforeSeparatorError(CheckerErrorWithContext):
-    code = "E203"
-    text_format = "whitespace before '%s'"
-
-
-class TooManyBlankLinesError(CheckerErrorWithContext):
-    code = "E303"
-    text_format = "too many blank lines (%d)"
-
-
-class ExpectedTwoBlankLinesError(CheckerErrorWithContext):
-    code = "E302"
-    text_format = "expected 2 blank lines, found %d"
 
 
 ##############################################################################
@@ -506,7 +415,7 @@ class TabsOrSpaces(object):
         indent = leading_indentation(line.physical_line)
         for offset, char in enumerate(indent):
             if char != document.indent_char:
-                return MixedTabsAndSpacesError(offset)
+                return CheckerError("E101", offset)
 
 
 class TabsObsolete(object):
@@ -542,7 +451,7 @@ class TabsObsolete(object):
         indent = leading_indentation(line.physical_line)
         try:
             column = indent.index('\t')
-            return UsedTabsError(column)
+            return CheckerError("W191", column)
         except ValueError:
             pass
 
@@ -616,10 +525,10 @@ class TrailingWhitespace(object):
         without_newlines = rstrip_newlines(line.physical_line)
         without_spaces = without_newlines.rstrip()
         if without_newlines != without_spaces and not without_spaces:
-            return LineOfWhiteSpaceError()
+            return CheckerError("W293")
         if without_newlines != without_spaces:
             column = len(without_spaces)
-            return TrailingWhitespaceError(column)
+            return CheckerError("W291", column)
 
     def autofix(self, line, previous_line=None, document=None):
         """
@@ -666,7 +575,7 @@ class TrailingBlankLines(object):
         >>> checker.find_error(PhysicalLine('a == 0', line_number=1), document=one_line_document)
         """
         if line.physical_line.strip() == '' and line.line_number == document.num_lines:
-            return BlankLineAtEOFError()
+            return CheckerError("W391")
 
 
 class MissingNewline(object):
@@ -688,7 +597,7 @@ class MissingNewline(object):
         """
         if line.physical_line.rstrip() == line.physical_line:
             column = len(line.physical_line)
-            return NoNewlineAtEOFError(column)
+            return CheckerError("W292", column)
 
     def autofix(self, line, previous_line=None, document=None):
         error = self.find_error(line, previous_line=previous_line, document=document)
@@ -747,8 +656,7 @@ class MaximumLineLength(object):
             except UnicodeDecodeError:
                 pass
         if length > self.max_line_length:
-            return LineTooLongError(line_length=length,
-                                    max_line_length=self.max_line_length)
+            return CheckerError("E501", column=self.max_line_length, line_length=length)
 
 
 ##############################################################################
@@ -792,18 +700,18 @@ class BlankLines(object):
         max_blank_lines = max(line.blank_lines, line.blank_lines_before_comment)
         if previous_line.dedented_line.startswith('@'):
             if max_blank_lines:
-                return BlankLinesAfterDecoratorError()
+                return CheckerError("E304")
         elif max_blank_lines > 2 or (line.indent_level and max_blank_lines == 2):
-            return TooManyBlankLinesError(0, max_blank_lines)
+            return CheckerError("E303", blank_lines=max_blank_lines)
         elif (line.dedented_line.startswith('def ') or
               line.dedented_line.startswith('class ') or
               line.dedented_line.startswith('@')):
             if line.indent_level:
                 if not (max_blank_lines or previous_line.indent_level < line.indent_level or
                         self.DOCSTRING_REGEX.match(previous_line.logical_line)):
-                    return MissingBlankLineError()
+                    return CheckerError("E301")
             elif max_blank_lines != 2:
-                return ExpectedTwoBlankLinesError(0, max_blank_lines)
+                return CheckerError("E302", blank_lines=max_blank_lines)
 
 
 class ExtraneousWhitespace(object):
@@ -860,12 +768,12 @@ class ExtraneousWhitespace(object):
             char = text.strip()
             found = match.start()
             if text == char + ' ' and char in OPEN_PARENS:
-                return ExtraneousWhitespaceAfterError(found + 1, char)
+                return CheckerError("E201", column=found + 1, char=char)
             if text == ' ' + char and line[found - 1] != ',':
                 if char in CLOSE_PARENS:
-                    return ExtraneousWhitespaceBeforeClosingPunctuationError(found, char)
+                    return CheckerError("E202", column=found, char=char)
                 if char in ',;:':
-                    return ExtraneousWhitespaceBeforeSeparatorError(found, char)
+                    return CheckerError("E203", column=found, char=char)
 
 
 class MissingWhitespaceAfterSeparator(object):
@@ -907,7 +815,7 @@ class MissingWhitespaceAfterSeparator(object):
                     continue  # Slice syntax, no space required
                 if char == ',' and line[index + 1] == ')':
                     continue  # Allow tuple with only one element: (3,)
-                return MissingWhitespaceAfterSeparatorError(index, char)
+                return CheckerError("E231", column=index, char=char)
 
 
 class Indentation(object):
@@ -946,14 +854,14 @@ class Indentation(object):
         E113
         """
         if document.indent_char == ' ' and line.indent_level % 4:
-            return IndentationNotMultipleOfFourError()
+            return CheckerError("E111")
         if not previous_line:
             return
         indent_expect = previous_line.logical_line.endswith(':')
         if indent_expect and line.indent_level <= previous_line.indent_level:
-            return InsufficientIndentationError()
+            return CheckerError("E112")
         if line.indent_level > previous_line.indent_level and not indent_expect:
-            return UnexpectedIndentationError()
+            return CheckerError("E113")
 
 
 class WhitespaceBeforeParameters(object):
@@ -1002,7 +910,7 @@ class WhitespaceBeforeParameters(object):
                 (index < 2 or tokens[index - 2][1] != 'class') and
                 # Allow "return (a.foo for a in range(5))"
                 (not keyword.iskeyword(prev_text))):
-                return WhitespaceBeforeParametersError(prev_end, text)
+                return CheckerError("E211", column=prev_end, char=text)
             prev_type = token_type
             prev_text = text
             prev_end = end
@@ -1032,21 +940,39 @@ class WhitespaceAroundOperator(object):
         >>> checker.find_error(LogicalLine('a = 12 + 3'))
         >>> checker.find_error(LogicalLine('a = 4  + 5'))
         E221: 5
+        >>> "multiple spaces" in checker.find_error(LogicalLine('a = 4  + 5')).text
+        True
+        >>> "before" in checker.find_error(LogicalLine('a = 4  + 5')).text
+        True
         >>> checker.find_error(LogicalLine('a = 4 +  5'))
         E222: 7
+        >>> "after" in checker.find_error(LogicalLine('a = 4 +  5')).text
+        True
+        >>> "multiple spaces" in checker.find_error(LogicalLine('a = 4 +  5')).text
+        True
         >>> checker.find_error(LogicalLine('a = 4\t+ 5'))
         E223: 5
+        >>> "before" in checker.find_error(LogicalLine('a = 4\t+ 5')).text
+        True
+        >>> "tab" in checker.find_error(LogicalLine('a = 4\t+ 5')).text
+        True
         >>> checker.find_error(LogicalLine('a = 4 +\t5'))
         E224: 7
+        >>> "tab" in checker.find_error(LogicalLine('a = 4 +\t5')).text
+        True
+        >>> "after" in checker.find_error(LogicalLine('a = 4 +\t5')).text
+        True
         """
         for match in self.WHITESPACE_AROUND_OPERATOR_REGEX.finditer(line.logical_line):
             before, whitespace, after = match.groups()
-            tab = whitespace == '\t'
+            tab = "\t" in whitespace
             offset = match.start(2)
             if before in OPERATORS:
-                return WhitespaceAroundOperatorError(offset, whitespace, False)
+                code = "E224" if tab else "E222"
+                return CheckerError(code, column=offset)
             elif after in OPERATORS:
-                return WhitespaceAroundOperatorError(offset, whitespace, True)
+                code = "E223" if tab else "E221"
+                return CheckerError(code, column=offset)
 
 
 class MissingWhitespaceAroundOperator(object):
@@ -1135,7 +1061,7 @@ class MissingWhitespaceAroundOperator(object):
                     # Tolerate the "<>" operator, even if running Python 3
                     pass
                 else:
-                    return MissingWhitespaceError(prev_end)
+                    return CheckerError("E225", column=prev_end)
             elif token_type == tokenize.OP and prev_end is not None:
                 if text == '=' and parens:
                     # Allow keyword args or defaults: foo(bar=None).
@@ -1154,7 +1080,7 @@ class MissingWhitespaceAroundOperator(object):
                     else:
                         need_space = True
                 if need_space and start == prev_end:
-                    return MissingWhitespaceError(prev_end)
+                    return CheckerError("E225", column=prev_end)
             prev_type = token_type
             prev_text = text
             prev_end = end
@@ -1190,10 +1116,10 @@ class WhitespaceAroundComma(object):
         for separator in ',;:':
             found = line.logical_line.find(separator + '  ')
             if found > -1:
-                return MultipleSpacesAfterSeparatorError(found + 1, separator)
+                return CheckerError("E241", column=found + 1, separator=separator)
             found = line.logical_line.find(separator + '\t')
             if found > -1:
-                return TabAfterSeparatorError(found + 1, separator)
+                return CheckerError("E242", column=found + 1, separator=separator)
 
 
 class WhitespaceAroundNamedParameterEquals(object):
@@ -1235,7 +1161,7 @@ class WhitespaceAroundNamedParameterEquals(object):
             text = match.group()
             if parens and len(text) == 3:
                 column = match.start()
-                return NoSpaceAroundKeywordEqualsError(column)
+                return CheckerError("E251", column=column)
             if text == '(':
                 parens += 1
             elif text == ')':
@@ -1281,9 +1207,9 @@ class WhitespaceAroundInlineComment(object):
                 if not line[:start[1]].strip():
                     continue
                 if len(text) > 1 and (text.startswith('#  ') or not text.startswith('# ')):
-                    return NoWhitespaceAfterInlineCommentError(start)
+                    return CheckerError("E262", column=start)
                 if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
-                    return NotEnoughWhitespaceBeforeInlineCommentError(prev_end)
+                    return CheckerError("E261", column=prev_end)
             else:
                 prev_end = end
 
@@ -1319,7 +1245,7 @@ class ImportsOnSeparateLines(object):
         if line.logical_line.startswith('import '):
             found = line.logical_line.find(',')
             if found > -1:
-                return MultipleImportsOnOneLineError(found)
+                return CheckerError("E401", found)
 
 
 class CompoundStatement(object):
@@ -1375,10 +1301,10 @@ class CompoundStatement(object):
             if (before.count('{') <= before.count('}') and  # {'a': 1} (dict)
                 before.count('[') <= before.count(']') and  # [1:2] (slice)
                 not re.search(r'\blambda\b', before)):      # lambda x: x
-                return CompoundStatementWithColonError(found)
+                return CheckerError("E701", column=found)
         found = line.logical_line.find(';')
         if -1 < found:
-            return CompoundStatementWithSemicolonError(found)
+            return CheckerError("E702", column=found)
 
 
 class Python3000HasKey(object):
@@ -1401,7 +1327,7 @@ class Python3000HasKey(object):
         """
         pos = line.logical_line.find('.has_key(')
         if pos > -1:
-            return HasKeyError(pos)
+            return CheckerError("W601", column=pos)
 
 
 class Python3000RaiseComma(object):
@@ -1428,7 +1354,7 @@ class Python3000RaiseComma(object):
         """
         match = self.RAISE_COMMA_REGEX.match(line.logical_line)
         if match:
-            return ExceptionWithCommaError(match.start(1))
+            return CheckerError("W602", column=match.start(1))
 
 
 class Python3000NotEqual(object):
@@ -1451,7 +1377,7 @@ class Python3000NotEqual(object):
         """
         pos = line.logical_line.find('<>')
         if pos > -1:
-            return DeprecatedNotEqualsError(pos)
+            return CheckerError("W603", column=pos)
 
 
 class Python3000Backticks(object):
@@ -1471,7 +1397,7 @@ class Python3000Backticks(object):
         """
         pos = line.logical_line.find('`')
         if pos > -1:
-            return DeprecatedBackticksError(pos)
+            return CheckerError("W604", column=pos)
 
 
 ##############################################################################
