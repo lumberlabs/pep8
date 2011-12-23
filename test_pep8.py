@@ -2,6 +2,7 @@
 
 import fnmatch
 import os
+import pprint
 import sys
 import unittest
 
@@ -91,6 +92,18 @@ class TestSuite(unittest.TestCase):
             # empty the test case buffer
             del testcase[:]
 
+    def check_fixes(self, filename, fixed_filename):
+        """
+        Auto-fix the file, and check that it matches the fixed-fixture.
+        """
+        in_lines = readlines(filename)
+        checker = Checker(lines=in_lines)
+        autofixed_lines = checker.autofix()
+        correct_fixed_lines = readlines(fixed_filename)
+        hr = "------------------"
+        assert autofixed_lines == correct_fixed_lines, "\n%s EXPECTED %s \n%s"\
+                                                       "\n%s GOT %s \n %s\n" % (hr, hr, pprint.pformat(correct_fixed_lines), hr, hr, pprint.pformat(autofixed_lines))
+
     def test_all_files(self):
         """
         Run all tests in the test suite.
@@ -99,6 +112,8 @@ class TestSuite(unittest.TestCase):
         full_test_suite_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), test_suite_dir)
         for matching_filename in matching_filenames(full_test_suite_dir, include_patterns="*.py"):
             self.run_suite(matching_filename)
+            if os.path.isfile(matching_filename + ".fixed"):
+                self.check_fixes(matching_filename, matching_filename + ".fixed")
 
 
 if __name__ == '__main__':

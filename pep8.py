@@ -255,12 +255,35 @@ def most_common_indent_char(list_of_strings, indent_chars=INDENTATION_WHITESPACE
     return most_common_indent_char
 
 
+def most_common_line_ending(list_of_strings):
+    r"""
+    Determine which line ending occurs most in a list of lines.
+    Behavior is undetermined if there is a tie.
+
+    >>> most_common_line_ending(["a\n", "a\n", "a\n"])
+    '\n'
+    >>> most_common_line_ending(["a\n", "b\n", "c\r\n"])
+    '\n'
+    >>> most_common_line_ending(["a\n", "b\r\n", "c\r\n"])
+    '\r\n'
+    >>> most_common_line_ending([])  # tie
+    >>> most_common_line_ending(["a\n", "b\r\n"]) in ("\r\n", "\n")  # tie
+    True
+    """
+    if len(list_of_strings) == 0:
+        return None
+    all_endings = [line_ending(s) for s in list_of_strings]
+    most_common_line_ending = max((all_endings.count(ending), ending) for ending in set(all_endings))[1]
+    return most_common_line_ending
+
+
 class Document(object):
 
     def __init__(self, lines):
         self.lines = lines
         self.num_lines = len(lines)
         self.indent_char = most_common_indent_char(self.lines)
+        self.line_ending = most_common_line_ending(self.lines)
         self.line_number = 0
 
     def readline(self):
@@ -451,6 +474,10 @@ class TabsOrSpaces(object):
 
     Okay: if a == 0:\n        a = 1\n        b = 1
     E101: if a == 0:\n        a = 1\n\tb = 1
+
+    This checker does not provide autofixes, because it is not possible
+    to confidently disambiguate some tab depths...and reindent.py
+    already does a good job of handling the reasonable cases.
     """
 
     __metaclass__ = PhysicalLineChecker
@@ -489,6 +516,9 @@ class TabsObsolete(object):
 
     Okay: if True:\n    return
     W191: if True:\n\treturn
+
+    Not autofixable right now. Reason: Unless the whole file uses tabs,
+    ambiguities are possible. And reindent.py does a pretty good job of this already.
     """
 
     __metaclass__ = PhysicalLineChecker
@@ -591,6 +621,28 @@ class TrailingWhitespace(object):
             column = len(without_spaces)
             return TrailingWhitespaceError(column)
 
+    def autofix(self, line, previous_line=None, document=None):
+        """
+        >>> checker = TrailingWhitespace()
+        >>> checker.autofix(PhysicalLine('spam(1)'))
+        'spam(1)'
+        >>> checker.autofix(PhysicalLine('spam(1) '))
+        'spam(1)'
+        >>> checker.autofix(PhysicalLine('spam(1)  '))
+        'spam(1)'
+        >>> checker.autofix(PhysicalLine(' spam(1) '))
+        ' spam(1)'
+        >>> checker.autofix(PhysicalLine('spam(1)\t'))
+        'spam(1)'
+        >>> checker.autofix(PhysicalLine('   '))
+        ''
+        >>> checker.autofix(PhysicalLine('\t '))
+        ''
+        >>> checker.autofix(PhysicalLine(' \t '))
+        ''
+        """
+        return line.physical_line.rstrip() + line_ending(line.physical_line)
+
 
 class TrailingBlankLines(object):
     r"""
@@ -637,6 +689,13 @@ class MissingNewline(object):
         if line.physical_line.rstrip() == line.physical_line:
             column = len(line.physical_line)
             return NoNewlineAtEOFError(column)
+
+    def autofix(self, line, previous_line=None, document=None):
+        error = self.find_error(line, previous_line=previous_line, document=document)
+        if error is not None:
+            return line.physical_line + document.line_ending
+        else:
+            return line.physical_line
 
 
 class MaximumLineLength(object):
@@ -1504,6 +1563,26 @@ def leading_indentation(s, indent_chars=INDENTATION_WHITESPACE):
     return s[:len(s) - len(s.lstrip(indent_chars))]
 
 
+def line_ending(s):
+    r"""
+    Returns the line_ending string for a string s.
+    >>> line_ending("\n")
+    '\n'
+    >>> line_ending("abc\n")
+    '\n'
+    >>> line_ending("abc \n")
+    '\n'
+    >>> line_ending("")
+    ''
+    >>> line_ending("abc \r")
+    '\r'
+    >>> line_ending("abc \r\n")
+    '\r\n'
+    """
+    without_line_endings = rstrip_newlines(s)
+    return s[len(without_line_endings):]
+
+
 ##############################################################################
 # Framework to run all checks
 ##############################################################################
@@ -1665,3 +1744,25 @@ class Checker(object):
             previous_line = logical_line
 
         return self.results
+
+    def autofix(self):
+        """
+        Try to fix the input file as much as possible.
+
+        Note that checking is done in a single pass, interweaving physical and logical lines.
+        Fixing is done in two passes, first fixing all physical line errors, and then all logical line errors.
+        """
+        fixed_lines = []
+        # Fix physical lines
+        for line in self.document.lines:
+            autofixed_line = line
+            for physical_checker in PHYSICAL_LINE_CHECKERS:
+                instance = physical_checker(**self.checker_config)
+                input_line = PhysicalLine(autofixed_line, line_number=self.document.line_number)
+                try:
+                    autofixed_line = instance.autofix(line=input_line, previous_line=None, document=self.document)
+                except AttributeError:
+                    pass
+            fixed_lines.append(autofixed_line)
+        return fixed_lines
+
