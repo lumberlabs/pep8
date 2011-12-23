@@ -76,7 +76,7 @@ class TestSuite(unittest.TestCase):
                 label = '%s:%s:1' % (filename, line_offset + 1)
                 codes = [c for c in codes if c != 'Okay']
                 # Run the checker
-                results = Checker(filename, lines=testcase).check_all()
+                results = Checker(lines=testcase).check_all()
                 # Check if the expected errors were found
                 for code in codes:
                     self.assertTrue(results.contains_error_with_code(code), 'Expected %s in %s at line %s' % (code, filename, line_offset + 1))

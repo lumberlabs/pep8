@@ -1616,9 +1616,7 @@ class Checker(object):
     Check coding style of a source file, code string, or list of code lines.
     """
 
-    def __init__(self, filename="stdin", lines=None, code=None):
-        self.filename = filename
-
+    def __init__(self, lines=None, code=None):
         if not lines:
             if code:
                 lines = code.splitlines(True)
