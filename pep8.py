@@ -303,42 +303,52 @@ class Document(object):
 class CheckerError(object):
     "A class that encapsulates checker errors."
 
-    ERROR_TEXT = {"E251": "no spaces around keyword / parameter equals",
-                  "E262": "inline comment should start with '# '",
+    ERROR_TEXT = {
                   "E101": "indentation contains mixed spaces and tabs",
+                  "E111": "indentation is not a multiple of four",
+                  "E112": "expected an indented block",
+                  "E113": "unexpected indentation",
+
                   "W191": "indentation contains tabs",
-                  "W291": "trailing whitespace",
-                  "W293": "blank line contains whitespace",
-                  "W391": "blank line at end of file",
-                  "W292": "no newline at end of file",
+
+                  "E201": "whitespace after %(char)r",
+                  "E202": "whitespace before %(char)r",
+                  "E203": "whitespace before %(char)r",
+                  "E211": "whitespace before %(char)r",
+                  "E221": "multiple spaces before operator",
+                  "E222": "multiple spaces after operator",
+                  "E223": "tab before operator",
+                  "E224": "tab after operator",
+                  "E225": "missing whitespace around operator",
+                  "E231": "missing whitespace after %r",
+                  "E241": "multiple spaces after %(separator)r",
+                  "E242": "tab after %(separator)r",
+                  "E251": "no spaces around keyword / parameter equals",
                   "E261": "at least two spaces before inline comment",
+                  "E262": "inline comment should start with '# '",
+
+                  "W291": "trailing whitespace",
+                  "W292": "no newline at end of file",
+                  "W293": "blank line contains whitespace",
+
+                  "E301": "expected 1 blank line, found 0",
+                  "E302": "expected 2 blank lines, found %(blank_lines)d",
+                  "E303": "too many blank lines (%(blank_lines)d)",
+                  "E304": "blank lines found after function decorator",
+
+                  "W391": "blank line at end of file",
+
                   "E401": "multiple imports on one line",
-                  "E701": "multiple statements on one line (colon)",
-                  "E702": "multiple statements on one line (semicolon)",
+
+                  "E501": "line too long (%(line_length)d characters)",
+
                   "W601": ".has_key() is deprecated, use 'in'",
                   "W602": "deprecated form of raising exception",
                   "W603": "'<>' is deprecated, use '!='",
                   "W604": "backticks are deprecated, use 'repr()'",
-                  "E225": "missing whitespace around operator",
-                  "E111": "indentation is not a multiple of four",
-                  "E112": "expected an indented block",
-                  "E113": "unexpected indentation",
-                  "E304": "blank lines found after function decorator",
-                  "E301": "expected 1 blank line, found 0",
-                  "E501": "line too long (%(line_length)d characters)",
-                  "E241": "multiple spaces after %(separator)r",
-                  "E242": "tab after %(separator)r",
-                  "E211": "whitespace before %(char)r",
-                  "E231": "missing whitespace after %r",
-                  "E201": "whitespace after %(char)r",
-                  "E202": "whitespace before %(char)r",
-                  "E203": "whitespace before %(char)r",
-                  "E303": "too many blank lines (%(blank_lines)d)",
-                  "E302": "expected 2 blank lines, found %(blank_lines)d",
-                  "E223": "tab before operator",
-                  "E221": "multiple spaces before operator",
-                  "E224": "tab after operator",
-                  "E222": "multiple spaces after operator",
+
+                  "E701": "multiple statements on one line (colon)",
+                  "E702": "multiple statements on one line (semicolon)",
                  }
 
     line = None
