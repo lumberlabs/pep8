@@ -1211,6 +1211,7 @@ class WhitespaceAroundInlineComment(object):
         E262: (1, 11)
         >>> checker.find_error(LogicalLine('x = x + 1  #  Increment x', autotokenize=True))
         E262: (1, 11)
+        >>> checker.find_error(LogicalLine('x = x + 1  #', autotokenize=True))
         """
         prev_end = (0, 0)
         for token_type, text, start, end, line in line.tokens:
@@ -1220,9 +1221,7 @@ class WhitespaceAroundInlineComment(object):
                 # TODO: What does this if statement do? Write a test for it.
                 if not line[:start[1]].strip():
                     continue
-                # TODO: "A and B or C" is ambiguous. Ick.
-                if (len(text) > 1 and text.startswith('#  ')
-                               or not text.startswith('# ')):
+                if len(text) > 1 and (text.startswith('#  ') or not text.startswith('# ')):
                     return NoWhitespaceAfterInlineCommentError(start)
                 if prev_end[0] == start[0] and start[1] < prev_end[1] + 2:
                     return NotEnoughWhitespaceBeforeInlineCommentError(prev_end)
