@@ -299,47 +299,47 @@ class Document(object):
 # Errors and warnings
 ##############################################################################
 
-CHECKER_ERRORS = {"E251": {"text": "no spaces around keyword / parameter equals"},
-                  "E262": {"text": "inline comment should start with '# '"},
-                  "E101": {"text": "indentation contains mixed spaces and tabs"},
-                  "W191": {"text": "indentation contains tabs"},
-                  "W291": {"text": "trailing whitespace"},
-                  "W293": {"text": "blank line contains whitespace"},
-                  "W391": {"text": "blank line at end of file"},
-                  "W292": {"text": "no newline at end of file"},
-                  "E261": {"text": "at least two spaces before inline comment"},
-                  "E401": {"text": "multiple imports on one line"},
-                  "E701": {"text": "multiple statements on one line (colon)"},
-                  "E702": {"text": "multiple statements on one line (semicolon)"},
-                  "W601": {"text": ".has_key() is deprecated, use 'in'"},
-                  "W602": {"text": "deprecated form of raising exception"},
-                  "W603": {"text": "'<>' is deprecated, use '!='"},
-                  "W604": {"text": "backticks are deprecated, use 'repr()'"},
-                  "E225": {"text": "missing whitespace around operator"},
-                  "E111": {"text": "indentation is not a multiple of four"},
-                  "E112": {"text": "expected an indented block"},
-                  "E113": {"text": "unexpected indentation"},
-                  "E304": {"text": "blank lines found after function decorator"},
-                  "E301": {"text": "expected 1 blank line, found 0"},
-                  "E501": {"text": "line too long (%(line_length)d characters)"},
-                  "E241": {"text": "multiple spaces after %(separator)r"},
-                  "E242": {"text": "tab after %(separator)r"},
-                  "E211": {"text": "whitespace before %(char)r"},
-                  "E231": {"text": "missing whitespace after %r"},
-                  "E201": {"text": "whitespace after %(char)r"},
-                  "E202": {"text": "whitespace before %(char)r"},
-                  "E203": {"text": "whitespace before %(char)r"},
-                  "E303": {"text": "too many blank lines (%(blank_lines)d)"},
-                  "E302": {"text": "expected 2 blank lines, found %(blank_lines)d"},
-                  "E223": {"text": "tab before operator"},
-                  "E221": {"text": "multiple spaces before operator"},
-                  "E224": {"text": "tab after operator"},
-                  "E222": {"text": "multiple spaces after operator"},
-                  }
-
 
 class CheckerError(object):
     "A class that encapsulates checker errors."
+
+    ERROR_TEXT = {"E251": "no spaces around keyword / parameter equals",
+                  "E262": "inline comment should start with '# '",
+                  "E101": "indentation contains mixed spaces and tabs",
+                  "W191": "indentation contains tabs",
+                  "W291": "trailing whitespace",
+                  "W293": "blank line contains whitespace",
+                  "W391": "blank line at end of file",
+                  "W292": "no newline at end of file",
+                  "E261": "at least two spaces before inline comment",
+                  "E401": "multiple imports on one line",
+                  "E701": "multiple statements on one line (colon)",
+                  "E702": "multiple statements on one line (semicolon)",
+                  "W601": ".has_key() is deprecated, use 'in'",
+                  "W602": "deprecated form of raising exception",
+                  "W603": "'<>' is deprecated, use '!='",
+                  "W604": "backticks are deprecated, use 'repr()'",
+                  "E225": "missing whitespace around operator",
+                  "E111": "indentation is not a multiple of four",
+                  "E112": "expected an indented block",
+                  "E113": "unexpected indentation",
+                  "E304": "blank lines found after function decorator",
+                  "E301": "expected 1 blank line, found 0",
+                  "E501": "line too long (%(line_length)d characters)",
+                  "E241": "multiple spaces after %(separator)r",
+                  "E242": "tab after %(separator)r",
+                  "E211": "whitespace before %(char)r",
+                  "E231": "missing whitespace after %r",
+                  "E201": "whitespace after %(char)r",
+                  "E202": "whitespace before %(char)r",
+                  "E203": "whitespace before %(char)r",
+                  "E303": "too many blank lines (%(blank_lines)d)",
+                  "E302": "expected 2 blank lines, found %(blank_lines)d",
+                  "E223": "tab before operator",
+                  "E221": "multiple spaces before operator",
+                  "E224": "tab after operator",
+                  "E222": "multiple spaces after operator",
+                 }
 
     line = None
 
@@ -347,11 +347,18 @@ class CheckerError(object):
         self.code = code
         self.column = column
         self.context = context
-        self.text = CHECKER_ERRORS[self.code]["text"] % self.context
 
     @property
     def description(self):
         return "%s %s" % (self.code, self.text)
+
+    @property
+    def text_format(self):
+        return self.ERROR_TEXT[self.code]
+
+    @property
+    def text(self):
+        return self.text_format % self.context
 
     def __repr__(self):
         # This is a lame __repr__ implementation, but it's kept simple and
@@ -363,7 +370,6 @@ class CheckerError(object):
 
     def location(self):
         return self.line.original_location_for_column(self.column)
-
 
 
 ##############################################################################
