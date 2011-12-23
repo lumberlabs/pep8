@@ -122,8 +122,6 @@ except ImportsError:
 DEFAULT_EXCLUDE = '.svn,CVS,.bzr,.hg,.git'
 DEFAULT_IGNORE = 'E24'
 
-INDENT_REGEX = re.compile(r'([ \t]*)')
-
 INDENTATION_WHITESPACE = ' \t'
 OPEN_PARENS = '([{'
 CLOSE_PARENS = ')]}'
@@ -478,7 +476,7 @@ class TabsOrSpaces(object):
         >>> checker.find_error(PhysicalLine('\t        a = 1'), document=tab_indented_document)
         E101: 1
         """
-        indent = INDENT_REGEX.match(line.physical_line).group(1)
+        indent = leading_indentation(line.physical_line)
         for offset, char in enumerate(indent):
             if char != document.indent_char:
                 return MixedTabsAndSpacesError(offset)
@@ -511,7 +509,7 @@ class TabsObsolete(object):
         >>> checker.find_error(PhysicalLine('    \t\ta = 0'))
         W191: 4
         """
-        indent = INDENT_REGEX.match(line.physical_line).group(1)
+        indent = leading_indentation(line.physical_line)
         try:
             column = indent.index('\t')
             return UsedTabsError(column)
